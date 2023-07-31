@@ -1,0 +1,110 @@
+<html>
+
+<head>
+  <link rel="stylesheet" href="index.css">
+  <!-- <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script> -->
+  <script src="d3.v6.min.js"></script>
+  <script src="mqtt.js"></script>
+</head>
+
+<body>
+  <div id="uses-box">
+    <h3>Ensure VPN and Client <a
+        href="https://docs.solace.com/Monitoring/Receiving-Message-Bus-Events.htm#subscribing_to_message_bus_events_1651767527_319778">events-over-the-message-bus
+        are enabled</a>, with MQTT format</h3>
+    <h3>For SEMP access, <a href="https://docs.solace.com/Services/Managing-Services.htm#manage-CORS">enable
+        Cross-Origin Resource Sharing (CORS)</a></h3>
+    <span id="instructions" hidden>To see loading/running instructions, remove URL parameters.</span>
+    <span id="ulist">
+      <h3>Uses / demonstrates:</h3>
+      <ul>
+        <li>JCSMP</li>
+        <li>Guaranteed & Direct Messaging</li>
+        <li>Parititioned Queues</li>
+        <li>Request/reply</li>
+        <li>MQTT JavaScript</li>
+        <li>SEMP (v1 and v2)</li>
+        <li>Event logs over-the-message-bus</li>
+        <li>REST messaging API (Messaging and/or Gateway modes)</li>
+        <li>Gaps, Dupes, Out-of-Sequence, & Redelivery checks</li>
+        <li>Forced client disconnects (with SEMP enabled)</li>
+        <!-- <li>Publisher NACKs using publish ACLs (with SEMP enabled)</li> -->
+      </ul>
+    </span>
+  </div>
+  <span id="pubs"></span>
+  <span id="oc"></span>
+  <span id="queue"></span>
+  <span id="partitions"></span>
+  <span id="subs"></span>
+  <svg id="svg">
+    <g id="lines"></g>
+    <g id="pubarrows"></g>
+    <g id="ocarrow"></g>
+  </svg>
+
+  <div id="title-box">
+    <h1>Solace Partitioned Queues Demo</h1>
+    <br />
+    <span id="ctrl-box" style="visibility: hidden" ;>
+      <select>
+        <option>pq-demo</option>
+      </select>
+      <code>/</code>
+      <select id="ctrltopic">
+        <!-- <option>control</option>
+        <option>control-abc123</option> -->
+      </select>
+      <code>/</code>
+      <select id="ctrlcommand">
+        <option>rate</option>
+        <option>keys</option>
+        <option>prob</option>
+        <option>delay</option>
+        <option>size</option>
+        <option>slow</option>
+        <option>ackd</option>
+        <option>quit</option>
+        <option>kill</option>
+      </select>
+      <code>/</code>
+      <input id="ctrlinput" type="text" size="2" value="1" />
+      &nbsp;
+      <button id="button-ctrl" onClick="sendCtrlMsg();" disabled>Submit</button>
+      <p style="font-size:50%"">&nbsp;</p>
+      <button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/kill');" title="Death">Send Kill message 💀</button>
+      &nbsp;&nbsp;<button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/quit');" title="Graceful">Send Quit message 😇</button>
+      <span id="nacks" style="visibility: hidden">
+        <p style="font-size:50%">&nbsp;</p>
+        Publish topic ACL: <input id="acl" type="text" size="5" value="pq12/>"/>
+        &nbsp;
+        <button id="button-acl" class="sempdep" onClick="injectPublishException();" disabled>Toggle</button>
+      </span>
+    </span>
+    <script>
+      document.getElementById("ctrlinput").addEventListener("keypress", function (event) {
+        // If the user presses the "Enter" key on the keyboard
+        if (event.key === "Enter") {
+          // Cancel the default action, if needed
+          event.preventDefault();
+          // document.getElementById("button-ctrl").click();  // doesn't flash orange, unfortunately
+          sendCtrlMsg();
+        }
+      });
+    </script>
+  </div>
+  <!-- <script>d3.select('#title-box').attr('width', window.innerWidth); console.log("Winsdow width is " + window.innerWidth);</script> -->
+  <!-- <div id="text-box"></div> -->
+  <div id="conn-box">
+    <p>MQTT Disconnected</span><br />SEMP Disconnected</p>
+  </div>
+
+  <div id="aaron-box">
+    <p>A demo by Aaron <span style="font-family: 'Times', 'Times New Roman', serif; font-size: larger;">@ <span style=" font-weight: bold; color: #00c895;">solace</span></span>, 2023</p>
+  </div>
+
+  <!-- <script type='text/javascript' src='script.js'></script> -->
+  <script type='text/javascript' src='index.js'></script>
+</body>
+
+</html>

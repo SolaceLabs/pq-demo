@@ -1,0 +1,149 @@
+:root {
+    --semp-dep-pointer: none;
+}
+
+html,body {
+    height: 100%;
+    padding: 0px;
+    margin: 0px;
+    /* background: linear-gradient(-20deg, #00ad9344 0%, rgba(255,255,255,1) 200px); */
+}
+
+body {
+    background-color: #ffeeee;
+    font-family: 'Rubik', sans-serif;
+    font-size: 12pt;
+    font-weight: 400;
+    overflow: hidden; /* Hide scrollbars */
+}
+
+div {
+    border-radius: 8px;
+    margin: 0px;
+    padding: 5px 20px 5px 20px;
+}
+
+.withBorder {
+    outline: 0.15em solid black;
+}
+
+.thickBorder {
+    outline: 0.2em solid black;
+}
+
+h1, h2, p, table, tr, td, a {
+    margin: 0px;
+    padding: 0px;
+    border-spacing: 0px 3px;
+}
+
+p {
+    padding: 0px 0px;
+}
+
+h1 {
+    font-size: 32pt;
+    font-weight: 300;
+}
+
+h2 {
+    font-size: 16pt;
+    font-weight: 500;
+}
+
+a, a:link, a:visited {
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0px;
+    text-decoration-color: #00000077;
+    text-decoration-thickness: 3px;
+}
+
+.sempdep {
+    /* text-decoration-color: #f00;; */
+    pointer-events: var(--semp-dep-pointer);
+}
+
+
+input[type=text], select, button, select:disabled {
+    margin: 2px;
+    border: 2px solid #00ad93;
+    padding:3px 8px;
+    border-radius: 12px;
+    font-size: 12pt;
+    /* font-family: 'Consolas', 'Courier New', Courier, monospace; */
+    font-weight: 700;
+    color: #000;
+    background-color: #00c89511;
+}
+
+input[type=text] {
+    border-radius: 5px;
+}
+
+button {
+    border-radius: 0px;
+    pointer-events: all;
+    border-width: 3px;
+    transition-duration: 0.25s;
+}
+
+button:hover {
+    background-color: #00c89522;
+    border-color: #00c895;
+    /* box-shadow: 2px 4px 6px rgba(0,0,0,0.1); */
+    cursor: pointer;
+    /* , 0 2px 4px 0 rgba(0,0,0,0.19); */
+}
+
+button:active {
+    border-color: #f60;
+    background-color: #f602;
+    transition-duration: 0s;
+}
+
+button:disabled {
+    color: #aaa;
+    background-color: #eee;
+    border-width: 1px;
+    cursor: not-allowed;
+}
+
+#title-box {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 99;
+    padding: 0px 10px;
+    /* pointer-events: none; */
+}
+
+#uses-box {
+    position: absolute;
+    top: 80px;
+    left: 20px;
+    z-index: 99;
+    padding: 0px 10px;
+    /* pointer-events: none; */
+}
+
+#conn-box {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 99;
+    padding: 0px 10px;
+    pointer-events: none;
+}
+
+#aaron-box {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99;
+    padding: 0px 10px;
+    pointer-events: none;
+}

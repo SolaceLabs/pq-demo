@@ -1,0 +1,14 @@
+curl -u admin:pw https://test.messaging.solace.cloud:943/SEMP/v2/monitor/msgVpns/pq-demo/clients/pq%2fsub%2fsub-WY71
+
+
+
+curl -u admin:pw https://test.messaging.solace.cloud:943/SEMP/v2/config/msgVpns/pq-demo/aclProfiles/default/clientConnectExceptions
+
+
+curl -u admin:pw https://test.messaging.solace.cloud:943/SEMP/v2/config/msgVpns/pq-demo/aclProfiles/default/clientConnectExceptions -d '{"clientConnectExceptionAddress":"50.91.234.123/32"}' -H 'content-type:application/json'
+
+
+curl -u admin:pw https://test.messaging.solace.cloud:943/SEMP/v2/config/msgVpns/pq-demo/aclProfiles/default/clientConnectExceptions/50.68.194.20%2f32 -X DELETE
+
+
+

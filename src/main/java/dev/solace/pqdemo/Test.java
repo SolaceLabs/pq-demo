@@ -1,0 +1,231 @@
+package dev.solace.pqdemo;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.math3.distribution.PoissonDistribution;
+import org.json.JSONObject;
+
+public class Test {
+
+	
+	
+	static class TestApp extends AbstractParentApp {
+		
+	}
+	
+	
+
+	static String toPrettyString(Set<Integer> aSet) {
+		List<String> ranges = new ArrayList<>();
+		// assuming that aSet is sorted..!  somehow it appears to be?
+		int cursor = -1;
+		int start = cursor;
+		// essentially we're looking for gaps, and ranges, to combine...
+		for (int i : aSet) {
+			if (cursor == -1) {  // the start!
+				start = i;
+				cursor = i;
+				continue;
+			}
+			if (i == cursor+1) {
+				cursor++;
+				continue;  // just the next one up
+			}
+			// else, there's a gap now...
+			if (start == cursor) ranges.add(Integer.toString(start));
+			else ranges.add(start + "-" + cursor);
+			cursor = i;
+			start = i;
+		}
+		if (start == cursor) ranges.add(Integer.toString(start));
+		else ranges.add(start + "-" + cursor);
+		return ranges.toString();
+	}
+	
+	
+	public static void main(String... args) {
+		
+	    ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("one"));
+	    ScheduledExecutorService singleThreadPool2 = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("two"));
+	    
+	    singleThreadPool.scheduleAtFixedRate(new Runnable() {
+
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				System.out.println(Thread.currentThread().getName());
+			}
+	    	
+	    }, 1, 1, TimeUnit.SECONDS);
+	    singleThreadPool2.scheduleAtFixedRate(new Runnable() {
+
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				System.out.println(Thread.currentThread().getName());
+			}
+	    	
+	    }, 500, 1000, TimeUnit.MILLISECONDS);
+	    
+		
+		Integer aa = Integer.valueOf(1);
+		Integer bb = Integer.valueOf(1);
+		System.out.println(aa.equals(bb));
+//		System.out.println(Integer.parseInt("10,000"));  // doesn't work!
+//		System.exit(1);
+		
+		TreeMap<String,AtomicInteger> blah = new TreeMap<>();
+		TreeMap<String,Integer> blah2 = new TreeMap<>();
+		
+		blah.put("test", new AtomicInteger(0));
+		blah2.put("test", 0);
+		
+		while (true) {
+//			blah.get("test").incrementAndGet();
+			blah2.put("test", blah2.get("test") + 1);
+			
+			
+			if ("1".equals("2")) break;
+		}
+		
+		System.out.println(Math.log(17));
+		System.out.println(Math.log(17) / Math.log(16));
+		System.out.println(Math.log(255) / Math.log(16));
+		System.out.println(Math.log(257) / Math.log(16));
+		System.out.println(Math.log(Integer.MAX_VALUE) / Math.log(16));
+		System.exit(1);
+		
+		
+		double prob = 0.995;
+		Random r = new Random();
+
+		int total = 0;
+		int loops = 1000000;
+		
+		for (int i=0; i<loops; i++) {
+			int j = 1;
+			while (r.nextDouble() < prob) {
+				j++;
+			}
+			total += j;
+		}
+		
+		System.out.println(total * 1.0 / loops);
+		System.exit(0);
+		
+		
+		final int pdMeanMs = 100;
+//		final int actualPdValue = (int)Math.sqrt(pdMeanMs);  // so like, 1000
+		final double actualPdValue = Math.pow(pdMeanMs, 0.333);  // so like, 1000
+//		System.out.println(actualPdValue);
+		final double scale = pdMeanMs * 1.0 / actualPdValue;
+//		System.out.println(scale);
+//		System.out.println();
+		
+		final int count = 20_000;
+		int[] nums = new int[count];
+		int max = 0;
+		PoissonDistribution pd = new PoissonDistribution(actualPdValue);  // much slower for large numbers, seems inversely proportional to PD size
+		PoissonDistribution pd2 = new PoissonDistribution(50);
+		long start = System.currentTimeMillis();
+		for (int i=0; i<count; i++) {
+//			System.out.println(pd.sample());
+//			nums[i] = Math.max(0, (int)Math.round(pd.sample() * scale + (Math.random() * scale) - scale/2));
+			nums[i] = pd2.sample();
+//			int asdf = pd.sample();
+//			max = Math.max(max, nums[i]);
+			System.out.println(i + "\t" + nums[i]);
+//			System.out.println(nums[i]);
+		}
+		
+//		System.out.println("max = " + (max * scale));
+//		System.out.println(System.currentTimeMillis() - start);
+		System.exit(0);
+		
+		String payload = "{\"SLOW\":35, \"ACKD\": 1000 }";
+
+		TestApp.stateMap.put(Command.SLOW, 34);
+		System.out.println(TestApp.parseStateUpdateMessage(payload));
+		
+		payload = "{\"SLOW\":35, \"ACKD\": 1200 }";
+		System.out.println(TestApp.parseStateUpdateMessage(payload));
+		
+		System.out.println(-35 % 1000000);
+		System.out.println(-999835 % 1000000);
+		
+		
+		JSONObject jo = new JSONObject();
+		double val = 0.0;
+		jo.put("prob", val);
+		System.out.println(jo.toString());
+		Object o = jo.get("prob");
+		System.out.println(o.getClass().getSimpleName());
+		jo = new JSONObject("{\"prob\":0}");
+		o = jo.getDouble("prob");
+		System.out.println(o.getClass().getSimpleName());
+		Double a = Double.valueOf(0);
+		Integer b = Integer.valueOf(0);
+		System.out.println(a.equals(b));
+		double c = 0;
+		int d = 0;
+		System.out.println(c == d);
+		System.out.println(a == d);
+		System.out.println(b == d);
+//		Double e = (Double)d;
+		Set<Object> s = new HashSet<>();
+		s.add(1.0);
+		System.out.println(s.toArray()[0].getClass().getSimpleName());
+		
+//		val = Double.valueOf(o);
+		
+		
+		Map<String,Integer> test = new HashMap<>();
+		test.put("a", 5);
+		test.clear();
+		int e = test.get("a");
+		System.out.println(test.get("a"));
+		
+
+		System.exit(0);
+		
+		
+		
+//		Arrays.sort(nums);
+//		for (int i=0; i<count; i++) {
+//			System.out.println(nums[i]);
+//		}
+
+//		System.out.println(max);
+		
+		
+		
+		String uuid = UUID.randomUUID().toString();
+		System.out.println(uuid);
+		System.out.println(uuid.substring(0,4));
+		
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println(UUID.randomUUID().toString().substring(0,4));
+		System.out.println();
+		
+		
+		
+	}
+}

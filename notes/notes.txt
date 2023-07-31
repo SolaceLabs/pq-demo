@@ -1,0 +1,29 @@
+
+
+
+
+
+2023-07-29 19:58:21,034 d.s.p.OrderChecker2 [aaron_1] INFO  (oc-DMJP) Rec'ed msgs/s: 0, gap: 0, oos: 0, red: 0, dupes: 0, newKs: 0
+2023-07-29 19:58:22,030 d.s.p.OrderChecker2 [aaron_1] INFO  (oc-DMJP) Rec'ed msgs/s: 0, gap: 0, oos: 0, red: 0, dupes: 0, newKs: 0
+2023-07-29 19:58:23,030 d.s.p.OrderChecker2 [aaron_1] INFO  (oc-DMJP) Rec'ed msgs/s: 0, gap: 0, oos: 0, red: 0, dupes: 0, newKs: 0
+2023-07-29 19:58:23,393 d.s.p.Sequencer [Context_1_ConsumerDispatcher] ERROR (sub-QKZL) key:BF-0, exp: 3648, got: 3658, +11, prv:❌  JUMP missing 10: [3648-3657] GAP! BAD!
+2023-07-29 19:58:23,393 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3659, got: 3659, ---, prv:✔  OK missing 10: [3648-3657]
+2023-07-29 19:58:23,393 d.s.p.Sequencer [Context_1_ConsumerDispatcher] FATAL (sub-QKZL) key:BF-0, exp: 3660, got: 3649, -11, prv:❌  REWIND missing 9: [3648, 3650-3657] IMPOSSIBLE!?
+2023-07-29 19:58:23,398 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3650, got: 3650, ---, prv:✔  OK missing 8: [3648, 3651-3657]
+2023-07-29 19:58:23,428 d.s.p.Sequencer [Context_1_ConsumerDispatcher] ERROR (sub-QKZL) key:BF-0, exp: 3651, got: 3663, +13, prv:❌  JUMP missing 11: [3648, 3651-3657, 3660-3662] GAP! BAD!
+2023-07-29 19:58:23,451 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3664, got: 3651, -13, prv:✔  REWIND missing 10: [3648, 3652-3657, 3660-3662]
+2023-07-29 19:58:23,451 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3652, got: 3652, ---, prv:✔  OK missing 9: [3648, 3653-3657, 3660-3662]
+2023-07-29 19:58:23,451 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3653, got: 3653, ---, prv:✔  OK missing 8: [3648, 3654-3657, 3660-3662]
+2023-07-29 19:58:23,451 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3654, got: 3654, ---, prv:✔  OK missing 7: [3648, 3655-3657, 3660-3662]
+2023-07-29 19:58:23,464 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3655, got: 3655, ---, prv:✔  OK missing 6: [3648, 3656-3657, 3660-3662]
+2023-07-29 19:58:23,464 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3656, got: 3656, ---, prv:✔  OK missing 5: [3648, 3657, 3660-3662]
+2023-07-29 19:58:23,474 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3657, got: 3648,  -9, prv:✔  REWIND missing 4: [3657, 3660-3662]
+2023-07-29 19:58:23,475 d.s.p.Sequencer [Context_1_ConsumerDispatcher] WARN  (sub-QKZL) key:BF-0, exp: 3649, got: 3657,  +9, prv:✔  JUMP missing 3: [3660-3662]
+2023-07-29 19:58:23,537 d.s.p.Sequencer [Context_1_ConsumerDispatcher] WARN  (sub-QKZL) key:BF-0, exp: 3658, got: 3660,  +3, prv:✔  JUMP missing 2: [3661-3662]
+2023-07-29 19:58:23,539 d.s.p.Sequencer [Context_1_ConsumerDispatcher] INFO  (sub-QKZL) key:BF-0, exp: 3661, got: 3661, ---, prv:✔  OK missing 1: [3662]
+2023-07-29 19:58:23,540 d.s.p.Sequencer [Context_1_ConsumerDispatcher] DEBUG (sub-QKZL) key:BF-0, exp: 3662, got: 3662, ---, prv:✔  OK
+2023-07-29 19:58:23,540 d.s.p.Sequencer [Context_1_ConsumerDispatcher] WARN  (sub-QKZL) key:BF-0, exp: 3663, got: 3664,  +2, prv:✔  JUMP
+2023-07-29 19:58:23,541 d.s.p.Sequencer [Context_1_ConsumerDispatcher] DEBUG (sub-QKZL) key:BF-0, exp: 3665, got: 3665, ---, prv:✔  OK
+2023-07-29 19:58:23,541 d.s.p.Sequencer [Context_1_ConsumerDispatcher] DEBUG (sub-QKZL) key:BF-0, exp: 3666, got: 3666, ---, prv:✔  OK
+2023-07-29 19:58:23,550 d.s.p.Sequencer [Context_1_ConsumerDispatcher] DEBUG (sub-QKZL) key:BF-0, exp: 3667, got: 3667, ---, prv:✔  OK
+
