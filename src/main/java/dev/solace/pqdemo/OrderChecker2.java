@@ -20,13 +20,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -226,19 +224,19 @@ public class OrderChecker2 extends AbstractParentApp {
 		System.out.println("Main thread quitting.");
     }
     
-    static AtomicInteger lastSubNum = new AtomicInteger(0);
-    static Map<String, Integer> subNums = new HashMap<>();
-    static String makeColThing(int pos) {
-    	StringBuilder sb = new StringBuilder();
-    	for (int i=0; i<pos; i++) {
-    		sb.append(' ');
-    	}
-    	sb.append('●');
-    	for (int i=pos; i<lastSubNum.get()-1; i++) {
-    		sb.append(' ');
-    	}
-    	return sb.toString();
-    }
+//    static AtomicInteger lastSubNum = new AtomicInteger(0);
+//    static Map<String, Integer> subNums = new HashMap<>();
+//    static String makeColThing(int pos) {
+//    	StringBuilder sb = new StringBuilder();
+//    	for (int i=0; i<pos; i++) {
+//    		sb.append(' ');
+//    	}
+//    	sb.append('●');
+//    	for (int i=pos; i<lastSubNum.get()-1; i++) {
+//    		sb.append(' ');
+//    	}
+//    	return sb.toString();
+//    }
     
     static void dealWithProcMessage(BytesXMLMessage msg) {
     	msgRecvCounter++;
@@ -251,9 +249,9 @@ public class OrderChecker2 extends AbstractParentApp {
 //    			return;
 //    		}
     		String sub = levels[3];
-    		if (!subNums.containsKey(sub)) {
-    			subNums.put(sub, lastSubNum.getAndIncrement());
-    		}
+//    		if (!subNums.containsKey(sub)) {
+//    			subNums.put(sub, lastSubNum.getAndIncrement());
+//    		}
             String pqKey = levels[4];
             int msgSeqNum = Integer.parseInt(levels[5]);
             boolean redelivered = levels.length > 6 && levels[6].equals("red");

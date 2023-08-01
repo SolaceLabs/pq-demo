@@ -227,7 +227,7 @@ public class Sequencer {
 		
 		    String redStr = "";
 		    if (redeliveredFlag) {
-		    	redStr = " RED🚩";  // red-elivered flag!
+		    	redStr = CharsetUtils.RED_FLAG;  // red-elivered flag!
 		    	red++;  // increment our counter
 		    }
 		    // this is my fancy log statement print-out
@@ -243,7 +243,7 @@ public class Sequencer {
 		    		msgSeqNum < seqStatus.expected ? Integer.toString(msgSeqNum-seqStatus.expected) : "+" + Integer.toString(msgSeqNum-seqStatus.expected+1));
 		    	final boolean prev = pkSeq.hasPrevSeqNum(msgSeqNum);
 		    	if (!prev) gaps++;  // increment the counter
-		    	final String prevStr =  msgSeqNum == 0 ? "-" : prev ? "✔" : "❌";
+		    	final String prevStr =  msgSeqNum == 0 ? "-" : prev ? CharsetUtils.PREV_YES : CharsetUtils.PREV_NO;
 		    	if (seqStatus.numDupes > 0) dupes++;  // increment the counter
 		    	final String missingStr = pkSeq.toStringMissingRanged();  // just to print the ranges of seq nums that we're missing
 		    	// OK, so stats for red & gaps (prevSeqNum) & dupes all taken care of... just newKs & oos to take care of...
@@ -299,7 +299,7 @@ public class Sequencer {
 		    			oos++;
 		    			if (seqStatus.numDupes > 0) {
 		    				if (prev) {  // at least we've seen the key before this, so maybe not all bad
-		    					logger.info(String.format(inner + " ⚠", pqKey, seqStatus.expected, msgSeqNum, plusMinus, prevStr, seqStatus.status, dupeCountStr, missingStr));
+		    					logger.info(String.format(inner + " " + CharsetUtils.WARNING, pqKey, seqStatus.expected, msgSeqNum, plusMinus, prevStr, seqStatus.status, dupeCountStr, missingStr));
 		    				} else {
 		    					logger.warn(String.format(inner + " GAP!", pqKey, seqStatus.expected, msgSeqNum, plusMinus, prevStr, seqStatus.status, dupeCountStr, missingStr));
 		    				}
@@ -334,11 +334,11 @@ public class Sequencer {
 			    	if (msgSeqNum > 1) {
 	//		    		oos++;  // actually, don't count this as an OoSeq, as it causes disturbing stats for viewers
 			    		newKs++;
-			    		logger.info(String.format(inner, pqKey, 1, msgSeqNum, "+"+msgSeqNum, "⚠", "START JUMP", "", ""));
+			    		logger.info(String.format(inner, pqKey, 1, msgSeqNum, "+"+msgSeqNum, CharsetUtils.WARNING, "START JUMP", "", ""));
 			    	} else if (msgSeqNum == 1) {
 			    		newKs++;
-			    		if (showEach) logger.info(String.format(inner, pqKey, 1, msgSeqNum, "---", "✔", "OK", "", ""));
-			    		else if (logger.isDebugEnabled()) logger.debug(String.format(inner, pqKey, 1, msgSeqNum, "-- ", "✔", "OK", "", ""));
+			    		if (showEach) logger.info(String.format(inner, pqKey, 1, msgSeqNum, "---", CharsetUtils.PREV_YES, "OK", "", ""));
+			    		else if (logger.isDebugEnabled()) logger.debug(String.format(inner, pqKey, 1, msgSeqNum, "-- ", CharsetUtils.PREV_YES, "OK", "", ""));
 			    	}
 		    	}
 		    	return false;

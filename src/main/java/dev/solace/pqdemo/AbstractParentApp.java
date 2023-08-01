@@ -50,7 +50,7 @@ import com.solacesystems.jcsmp.XMLMessageConsumer;
 import com.solacesystems.jcsmp.XMLMessageProducer;
 
 public abstract class AbstractParentApp {
-
+	
     static volatile boolean isShutdown = false;             // are we done?
     static volatile boolean isConnected = false;
     
@@ -384,9 +384,4 @@ public abstract class AbstractParentApp {
 			throw new IllegalControlTopicException(command, String.join("/", levels), e);
 		}
 	}
-    
-	
-	
-
-    
 }
