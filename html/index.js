@@ -431,7 +431,7 @@ function onMessage(topic, message) {  // string, Buffer
         }
         case "CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED": {
           // console.log(payloadWords);
-          console.log(getTs() + payloadWords[4] + "      client name: " + payloadWords[6] + ",      queue: " + payloadWords[8] + ",        part: " + payloadWords[10]);
+          console.log(getTs() + '*** ' + payloadWords[4] + "      client name: " + payloadWords[6] + ",      queue: " + payloadWords[8] + ",        part: " + payloadWords[10]);
           const clientName = payloadWords[6];
           const queueName = payloadWords[8];
           const partitionNum = payloadWords[10];  // it's actually a String, like "3"
@@ -576,10 +576,6 @@ function onMessage(topic, message) {  // string, Buffer
         subMap.get(clientName).lastTs = Date.now();
         updateSubStatus(subMap.get(clientName));
         updateClientStats(subMap.get(clientName), 'sub');
-
-        console.log(getTs() + 'STATS: ' + topic + ", " + payload.flow);
-
-
       } else if (clientName.indexOf("pq-demo/pub") == 0) {
         if (!ctrlSet.has(clientName)) {
           ctrlSet.add(clientName);
@@ -1946,6 +1942,9 @@ function sempV1Poll(postRequest, statsToFindArray) {
 }
 
 
+var sempTimerRates;
+var sempTimerDepth;
+
 function activateSemp() {
   console.log("### ACTIVATING SEMP!");
   if (!sempConn) {  // first time
@@ -1955,12 +1954,12 @@ function activateSemp() {
     document.querySelector(':root').style.setProperty('--semp-dep-pointer', 'all');  // set the stylesheet to allow clicking on the 'bounce' icon
 
     // start timers
-    setInterval(function ratesSemp() {
+    sempTimerRates = setInterval(function ratesSemp() {
       sempV1Poll(sempV1Requests.rates, ['current-ingress-rate-per-second', 'current-egress-rate-per-second']);
     }, 777);
     // stagger it
     setTimeout(function () {
-      setInterval(function depthSemp() {
+      sempTimerDepth = setInterval(function depthSemp() {
         sempV1Poll(sempV1Requests.detail, ['num-messages-spooled', 'topic-subscription-count']);
       }, 777);
     }, 388);

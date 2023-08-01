@@ -177,8 +177,8 @@ public class PQSubscriber extends AbstractParentApp {
 		consumer = session.getMessageConsumer(new SimpleIsConnectedReconnectHandler(), new XMLMessageListener() {
 			@Override
 			public void onReceive(BytesXMLMessage message) {
-				String topic = message.getDestination().getName().toLowerCase();
-				if (topic.startsWith("post/pq-demo/")) {  // gateway mode
+				String topic = message.getDestination().getName();
+				if (topic.startsWith("POST/pq-demo/")) {  // gateway mode
 					topic = String.join("/", topic.split("/",2)[1]);
 				}
 				if (topic.equals("pq-demo/state/update")) {
