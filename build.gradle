@@ -96,10 +96,12 @@ scripts.each() { scriptName, className ->
         defaultJvmOpts = ['-ea', '-Dlogfile_name='+applicationName]  // enable assertions and set filename
         //optsEnvironmentVar = '-Dlog-file-name=\$APP_NAME'
     }
-    applicationDistribution.into("bin") {
-        from(t)
-        fileMode = 0755
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    application {
+        applicationDistribution.into("bin") {
+            from(t)
+            fileMode = 0755
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
     }
 }
 
