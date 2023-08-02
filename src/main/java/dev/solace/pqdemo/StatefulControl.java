@@ -19,6 +19,7 @@ package dev.solace.pqdemo;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -47,7 +48,7 @@ public class StatefulControl extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.PROB, Command.DELAY, Command.SIZE));  // publishers
 		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));  // subscribers
 	}
-
+	private static final String PROMPT = ": ";
 	private static final Logger logger = LogManager.getLogger();  // log4j2, but could also use SLF4J, JCL, etc.
 
 
@@ -61,7 +62,7 @@ public class StatefulControl extends AbstractParentApp {
 				System.exit(-1);
 			}
 	
-			System.out.println(APP_NAME + " initializing...");
+			logger.debug(APP_NAME + " initializing...");
 			// Build the properties object for initializing the JCSMP Session
 			final JCSMPProperties properties = buildProperties(args);
 			session = JCSMPFactory.onlyInstance().createSession(properties);
@@ -116,9 +117,6 @@ public class StatefulControl extends AbstractParentApp {
 			 */
 	
 	
-			logger.info(APP_NAME + " connected, and running. Press [ENTER] to quit.");
-			logger.debug("Default starting state: " + buildStatePayload());
-	
 			// setup Producer callbacks config: simple anonymous inner-class for handling publishing events
 			producer = session.getMessageProducer(new JCSMPStreamingPublishCorrelatingEventHandler() {
 				// unused in Direct Messaging application, only for Guaranteed/Persistent publishing application
@@ -144,17 +142,21 @@ public class StatefulControl extends AbstractParentApp {
 						topic = String.join("/", topic.split("/",2)[1]);
 					}
 					if (topic.equals("pq-demo/state/force")) {
-						EnumSet<Command> updated;
+						String payload;
 						if (message instanceof TextMessage) {
-							updated = parseStateUpdateMessage(((TextMessage)message).getText());
+							payload = ((TextMessage)message).getText();
 						} else if (message instanceof BytesMessage) {
-							updated = parseStateUpdateMessage(new String(((BytesMessage)message).getData()));
+							payload = new String(((BytesMessage)message).getData(), StandardCharsets.UTF_8);
+//							updated = parseStateUpdateMessage(new String(((BytesMessage)message).getData(), StandardCharsets.UTF_8));
 						} else {  // either Map or Stream message
+							logger.warn("Received an unexpected " + message.getClass().getSimpleName() + " message! Ignoring.");
 							return;
 						}
-						logger.info("These values were forced updated: " + updated);
+						EnumSet<Command> updated = parseStateUpdateMessage(payload);
+						if (!updated.isEmpty()) logger.info("These values were forced to update: " + updated);
+						else logger.info("Nothing to update");
 						if (!updated.isEmpty()) {
-							sendDirectMsg("pq-demo/state/update", buildStatePayload());
+							sendDirectMsg("pq-demo/state/update", buildStatePayload());  // tell everyone what the updated state is
 						}
 						if (message.getReplyTo() != null) {  // control message needs reply!  probably due to REST Gateway mode (otherwise it'd just time out)
 							// send empty reply
@@ -184,6 +186,7 @@ public class StatefulControl extends AbstractParentApp {
 					} else {
 						logger.warn("Received unhandled message on topic: " + message.getDestination().getName());
 					}
+	            	System.out.print(PROMPT);
 				}
 	
 				@Override
@@ -222,45 +225,60 @@ public class StatefulControl extends AbstractParentApp {
 //			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/force"));
 			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/state/>"));  // REST gateway mode
 			consumer.start();  // turn on the subs, and start receiving data
-			System.out.printf("%n%s connected and subscribed. Press [ENTER] to quit.%n", APP_NAME);
+			
+	        logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
+			logger.debug("Default starting state: " + buildStatePayload());
 			sendDirectMsg("pq-demo/state/update", buildStatePayload());  // broadcast my initial state, so any currently running apps get re-synced to my state
 	
+        	System.out.print(PROMPT);
 			while (!isShutdown) {
-	            Thread.sleep(50);  // loopy loop
+	            Thread.sleep(100);  // loopy loop
 	            if (System.in.available() > 0) {
 	            	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 	            	String line = reader.readLine();
 	            	if (line == null || line.isBlank()) {
-	            		logger.warn("Ignoring!");
+//	            		logger.warn("Ignoring!");
+		            	System.out.print(PROMPT);
 	            		continue;
 	            	}
-	            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
+	            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
 	            		System.out.println("Killing app...");
 	            		Runtime.getRuntime().halt(0);
-	            	} else if ("quit".equals(line.toLowerCase())) {
+	            	} else if ("quit".equalsIgnoreCase(line)) {
+	    				sendDirectMsg("pq-demo/control-all/quit");
 	            		isShutdown = true;
 	            		continue;
 	            	}
-	            	String[] levels = line.split(" ");
-	            	if (levels.length > 2) {
-	            		logger.warn("Ignoring '" + line + "', too many params.");
-	            		continue;
-	            	}
-	            	try {
+	            	String[] levels = line.split(" ", 2);
+	            	if ("force".equalsIgnoreCase(levels[0])) {
+	            		if (levels[1].trim().startsWith("'")) {  // user included the single quotes
+	            			levels[1] = levels[1].replaceAll("'", "");  // just blank them
+	            		}
+						EnumSet<Command> updated = parseStateUpdateMessage(levels[1]);
+						if (!updated.isEmpty()) {
+							logger.info("These values were forced to update: " + updated);
+							sendDirectMsg("pq-demo/state/update", buildStatePayload());  // tell everyone what the updated state is
+						}
+						else logger.info("Nothing to update");
+	            		System.out.print(PROMPT);
+	            	} else try {  // otherwise hopefully this is a 
 	            		Command command = Command.valueOf(levels[0].toUpperCase());
 	            		handleCommandUpdate(command, levels.length > 1 ? levels[1] : null);
+		            	System.out.print(PROMPT);
 					} catch (RuntimeException e) {
 						logger.warn("Ignoring! " + e.getMessage());
+		            	System.out.print(PROMPT);
 	            	}
 	            }
 			}
 			System.out.println("Main thread exiting.");
 		} finally {
-			System.out.println("Final state: (use topic 'pq-demo/state/force' with this payload to reset) " + buildStatePayload());
+			System.out.println("Final state: (use topic 'pq-demo/state/force' with this payload to reset):");
+			System.out.println("  " + buildStatePayload());
 		}
 	}
 
-	protected static void handleCommandUpdate(Command command, String param) throws IllegalCommandSyntaxException {
+	private static void handleCommandUpdate(Command command, String param) throws IllegalCommandSyntaxException {
 		if (stateMap.containsKey(command)) {
 			Object value = parseControlMessageValue(command, param);
 			if (value != null) {
@@ -271,9 +289,12 @@ public class StatefulControl extends AbstractParentApp {
 					stateMap.put(command, value);
 					sendDirectMsg("pq-demo/state/update", buildStatePayload());
 				}
-			}  // else value == null, so nothing to do...
+			} else {  // null return value
+				// could only be STATE and PAUSE
+				sendDirectMsg("pq-demo/control-all/" + command.name());
+			}
 		} else {
-			logger.debug("Ignoring!");
+			logger.debug("Ignoring! (not watching)");
 		}
 	}
 }

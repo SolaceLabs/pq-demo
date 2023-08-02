@@ -72,8 +72,9 @@ function sendCtrlMsg() {
     console.log('Must specify something in value!');
     return;
   }
-  if (isNaN(value)) {
-    if (value != "max") {
+  if (isNaN(value)) {  // ok, so not a number
+    // only thing can be the # of keys setting to 'max'
+    if (value.toLowerCase() != "max") {
       console.log("Invalid value");
       return;
     }
@@ -992,7 +993,7 @@ function getSubDivHtml(d) {
 }
 */
   var lastPart = '<table width="100%"><tr><td colspan="2">';
-  lastPart += '<nobr>Slow: <span id="varsubslow' + d.index + '">0</span> ms</nobr>';
+  lastPart += '<nobr><span id="colsubslow' + d.index + '">Slow: <span id="varsubslow' + d.index + '">0</span> ms</span></nobr>';
   lastPart += '</td><td colspan="2">';
   lastPart += '<nobr>ACK Delay: <span id="varsubackd' + d.index + '">0</span> ms</nobr>';
   lastPart += '</td></tr><tr><td width="22%">';
@@ -1100,7 +1101,7 @@ function getOcHtml() {
   }
   */
   var lastPart = '<table width="100%"><tr><td colspan="2">';
-  lastPart += '<nobr>Total Keys Seen: <span id="varockeys">0</span></nobr>';
+  lastPart += '<nobr>Total Keys Seen: <b><span id="varockeys">0</span></b></nobr>';
   lastPart += '</td><td colspan="2">';
   lastPart += '<nobr><span id="colocmissing">Total Missing Msgs: <span id="varocmissing">0</span></span></nobr>';
   lastPart += '</td></tr><tr><td width="22%">';
@@ -1667,8 +1668,14 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
       d3.select('#varsubslow' + client.index).text(d3.format('d')(client.slow));
       if (client.slow == 0) {
         d3.select('#varsubslow' + client.index).style('font-weight', 'normal');
+        d3.select('#colsubslow' + client.index).style('color', '#000000').style('font-weight', 'normal');
       } else {
         d3.select('#varsubslow' + client.index).style('font-weight', 'bold');
+        if (client.slow > 50) {
+          d3.select('#colsubslow' + client.index).style('color', '#880000').style('font-weight', 'bold');
+        } else {
+          d3.select('#colsubslow' + client.index).style('color', '#000000').style('font-weight', 'normal');
+        }
       }
       d3.select('#varsubackd' + client.index).text(d3.format('d')(client.ackd));
       if (client.ackd == 0) {
@@ -1679,7 +1686,11 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
     } // end sub block
     else if (type == 'oc') {
       // set directly, no bold or antthing
-      d3.select('#varockeys').text(d3.format(',d')(client.keys));
+      if (client.newKs > 0) {
+        d3.select('#varockeys').text(d3.format(',d')(client.keys) + ' (+' + d3.format(',d')(client.newKs) + ')');
+      } else {
+        d3.select('#varockeys').text(d3.format(',d')(client.keys));
+      }
       // d3.select('#varocnewks').text(d3.format('d')(client.newKs));  // ignore new keys
       // d3.select('#varocbadseq').text(d3.format('d')(client.badSeq));  // ignore num seqs with mising
       // if (client.badSeq == 0) {

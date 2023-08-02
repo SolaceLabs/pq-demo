@@ -59,7 +59,10 @@ public class Test {
 	
 	public static void main(String... args) {
 		
-	    
+		Object o2 = null;
+		String a2 = null;
+		System.out.println(a2.equalsIgnoreCase((String)o2));
+	    System.exit(1);
 		
 		Integer aa = Integer.valueOf(1);
 		Integer bb = Integer.valueOf(1);

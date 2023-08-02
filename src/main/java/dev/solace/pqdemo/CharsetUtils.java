@@ -30,12 +30,14 @@ public class CharsetUtils {
 	static {
 		// need to deal with weird chars on Windows Command Prompt due to lack of UTF-8 support
 		if (Charset.defaultCharset().equals(Charset.forName("UTF-8"))) {
-			PREV_YES = "✔";
+//			PREV_YES = "✔";
+			PREV_YES = "✔ ";
+//			PREV_NO = "✘";
 			PREV_NO = "❌";
 			SUB_CHAR = "●";
 			WARNING = "⚠";
 			RED_FLAG = " reD🚩 ";
-			WAVE = " 👋 🏼";
+			WAVE = " 👋";
 		} else {
 			PREV_YES = "Y";
 			PREV_NO = "X";

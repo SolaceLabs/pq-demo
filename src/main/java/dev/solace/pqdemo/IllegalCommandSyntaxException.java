@@ -29,7 +29,7 @@ public class IllegalCommandSyntaxException extends IllegalArgumentException {
 	}
 
 	private static String buildMessage(Command cmd, String invalidValue) {
-    	return "Illegal syntax for Command " + cmd.name() + "!  Invalid value '" + invalidValue + "'. Expecting: " + cmd.datatype;
+    	return "Illegal syntax for Command " + cmd.name() + ". Invalid value \"" + invalidValue + "\". Expecting: " + cmd.datatype;
 	}
 
 }

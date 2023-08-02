@@ -133,7 +133,7 @@ public class PQSubscriber extends AbstractParentApp {
 			System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> <password> <queue> [sub-ad-win-size]%n%n", APP_NAME);
 			System.exit(-1);
 		}
-		logger.info(APP_NAME + " initializing...");
+		logger.debug(APP_NAME + " initializing...");
 
 		final JCSMPProperties properties = buildProperties(args);
 		queueName = args[4];
@@ -174,7 +174,8 @@ public class PQSubscriber extends AbstractParentApp {
 				}
 				if (topic.equals("pq-demo/state/update")) {
 					EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)message).getText());
-					logger.info("Will be updating these values: " + updated);
+					if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
+					else logger.debug("Received state update message, but ignoring, all values same");
 					updateVars(updated);
 				} else if (topic.startsWith("pq-demo/control-")) {  // could be broadcast control, or to just me
 					//					processControlMessage(topic);
@@ -211,7 +212,7 @@ public class PQSubscriber extends AbstractParentApp {
 		flow_prop.setAckMode(JCSMPProperties.SUPPORTED_MESSAGE_ACK_CLIENT);  // best practice
 		flow_prop.setActiveFlowIndication(true);  // Flow events will advise when 
 
-		logger.info("Attempting to bind to queue '" + queueName + "' on the broker.");
+		logger.debug("Attempting to bind to queue '" + queueName + "' on the broker.");
 		try {
 			// see bottom of file for QueueFlowListener class, which receives the messages from the queue
 			flowQueueReceiver = session.createFlow(new QueueFlowListener(), flow_prop, null, new FlowEventHandler() {
@@ -250,7 +251,7 @@ public class PQSubscriber extends AbstractParentApp {
 	        		isConnected = false;  // shutting down
 	        		flowQueueReceiver.close();
 	        		Thread.sleep(1000);
-	                publishPrintStats();  // last time
+//	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
 	        		singleThreadPool.shutdown();  // stop printing stats
 	        		session.closeSession();  // will also close consumer and producer objects
@@ -280,7 +281,7 @@ public class PQSubscriber extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
+            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}
@@ -348,8 +349,10 @@ public class PQSubscriber extends AbstractParentApp {
 						// Therefore, DO NOT ACK until all processing/storing of this message is complete.
 						// NOTE that messages can be acknowledged from a different thread.
 						// ideally, we should do "processing" in a different thread with a LinkedBlockingQueue, and using flow control (e.g. stop()) when the queue is a certain size to prevent getting overloaded
-						String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
-								queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+//						String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
+//								queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+						String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
+								queueNameSimple, myName, pqKey, msgSeqNum);
 						sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);  // ACK from a different thread
 						// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
 						// that would be the PROPER way, but this is just a silly demo
@@ -361,8 +364,10 @@ public class PQSubscriber extends AbstractParentApp {
 					}
 				} else {
 					// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here
-					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
-							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+//					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
+//							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+					String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
+							queueNameSimple, myName, pqKey, msgSeqNum);
 					sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);
 				}
 			} catch (Exception e) {

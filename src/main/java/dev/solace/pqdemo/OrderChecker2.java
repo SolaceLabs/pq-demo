@@ -106,7 +106,7 @@ public class OrderChecker2 extends AbstractParentApp {
             System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> [password]%n%n", APP_NAME);
             System.exit(-1);
         }
-        logger.info(APP_NAME + " initializing...");
+        logger.debug(APP_NAME + " initializing...");
 
         final JCSMPProperties properties = buildProperties(args);
 //		queueName = args[4];  // only needed for received ACK processing messages
@@ -141,7 +141,8 @@ public class OrderChecker2 extends AbstractParentApp {
 				}
             	if (topic.equals("pq-demo/state/update")) {
 					EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)message).getText());
-					logger.info("Will be updating these values: " + updated);
+					if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
+					else logger.debug("Received state update message, but ignoring, all values same");
 					updateVars(updated);
 				} else if (topic.startsWith("pq-demo/control-")) {  // could be broadcast control, or to just me
 //					processControlMessage(topic);
@@ -218,7 +219,7 @@ public class OrderChecker2 extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
+            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}

@@ -163,12 +163,13 @@ public abstract class AbstractParentApp {
         Requestor requestor = session.createRequestor();
         TextMessage reqMsg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
         try {
-			logger.info("Requesting state update...");
+			logger.debug("Requesting state update...");
 			BytesXMLMessage response = requestor.request(reqMsg, 1000, JCSMPFactory.onlyInstance().createTopic("pq-demo/state/request"));
 			String payload = ((TextMessage)response).getText();
 			logger.info("State update received: " + payload);
 			EnumSet<Command> updated = parseStateUpdateMessage(payload);
-			logger.info("Will be using these values: " + updated);
+			if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
+			else logger.debug("Ignoring, all values same");
 			return updated;
         } catch (JCSMPException e) {
         	logger.warn("### StatefulControl app not running, no response on 'pq-demo/state/request'");
@@ -214,7 +215,7 @@ public abstract class AbstractParentApp {
     }
     
     
-    /** returns the list of commands that were updated */
+    /** returns the list of commands that were updated, won't return null but an empty Set */
     static EnumSet<Command> parseStateUpdateMessage(String jsonPayload) {
     	try {
     		JSONObject jsonStateUpdate = new JSONObject(jsonPayload);  // should have ALL commands/fields from StatefulControl
@@ -224,27 +225,24 @@ public abstract class AbstractParentApp {
 //    				continue;  // ignore, we don't care about this guy
 //    			}
     	    	if (jsonStateUpdate.has(c.name())) {
-    	    		if (c.objectType == String.class) {
-    	    			
-    	    		};
     	    		switch (c.objectType.getSimpleName()) {
     	    		case "String":
-    	    			if (!jsonStateUpdate.get(c.name()).equals(stateMap.get(c))) {
-    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.get(c.name()));
-    	    				stateMap.put(c, jsonStateUpdate.get(c.name()));
+    	    			if (!jsonStateUpdate.getString(c.name()).equalsIgnoreCase((String)stateMap.get(c))) {
+    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getString(c.name()).toLowerCase());
+    	    				stateMap.put(c, jsonStateUpdate.getString(c.name()).toLowerCase());
     	    				updatedCommands.add(c);
     	    			}
     	    			break;
     	    		case "Integer":
     	    			if (stateMap.get(c) == null || jsonStateUpdate.getInt(c.name()) != (Integer)stateMap.get(c)) {
-    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.get(c.name()));
+    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getInt(c.name()));
     	    				stateMap.put(c, jsonStateUpdate.getInt(c.name()));
     	    				updatedCommands.add(c);
     	    			}
     	    			break;
     	    		case "Double":
     	    			if (stateMap.get(c) == null || jsonStateUpdate.getDouble(c.name()) != (Double)stateMap.get(c)) {
-    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.get(c.name()));
+    	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getDouble(c.name()));
     	    				stateMap.put(c, jsonStateUpdate.getDouble(c.name()));
     	    				updatedCommands.add(c);
     	    			}
@@ -327,12 +325,12 @@ public abstract class AbstractParentApp {
 				// don't quit the stateful app anymore either, only pub/sub above in "processMessage()"
         		return null;
 			case STATE:
-        		logger.info("Current state configuration: '" + buildStatePayload() + "'");
+        		logger.info("Current state configuration: " + buildStatePayload());
 				return null;
 			case DISP:
-				if ("agg".equals(param.toLowerCase())) {
+				if ("agg".equalsIgnoreCase(param)) {
 					return "agg";
-				} else if ("each".equals(param.toLowerCase())) {
+				} else if ("each".equalsIgnoreCase(param)) {
 					return "each";
 				} else {
 					throw new IllegalCommandSyntaxException(command, param);
@@ -352,7 +350,7 @@ public abstract class AbstractParentApp {
     			}
 			case KEYS:
 				try {
-    				if ("max".equals(param.toLowerCase())) {
+    				if ("max".equalsIgnoreCase(param)) {
     					return Integer.MAX_VALUE;
     				} else {
         				Integer newKeyspace = Integer.parseInt(param);
