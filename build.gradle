@@ -68,6 +68,7 @@ idea {
 
 tasks.withType(JavaCompile).all {
     options.compilerArgs.add("-Xlint:all")
+    options.encoding = 'UTF-8'
 }
 
 // used to make the various start/run scripts
