@@ -59,27 +59,6 @@ public class Test {
 	
 	public static void main(String... args) {
 		
-	    ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("one"));
-	    ScheduledExecutorService singleThreadPool2 = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("two"));
-	    
-	    singleThreadPool.scheduleAtFixedRate(new Runnable() {
-
-			@Override
-			public void run() {
-				// TODO Auto-generated method stub
-				System.out.println(Thread.currentThread().getName());
-			}
-	    	
-	    }, 1, 1, TimeUnit.SECONDS);
-	    singleThreadPool2.scheduleAtFixedRate(new Runnable() {
-
-			@Override
-			public void run() {
-				// TODO Auto-generated method stub
-				System.out.println(Thread.currentThread().getName());
-			}
-	    	
-	    }, 500, 1000, TimeUnit.MILLISECONDS);
 	    
 		
 		Integer aa = Integer.valueOf(1);

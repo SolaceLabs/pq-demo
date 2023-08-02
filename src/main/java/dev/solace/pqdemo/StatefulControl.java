@@ -16,7 +16,9 @@
 
 package dev.solace.pqdemo;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.EnumSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -115,7 +117,7 @@ public class StatefulControl extends AbstractParentApp {
 	
 	
 			logger.info(APP_NAME + " connected, and running. Press [ENTER] to quit.");
-			logger.info("Default starting state: " + buildStatePayload());
+			logger.debug("Default starting state: " + buildStatePayload());
 	
 			// setup Producer callbacks config: simple anonymous inner-class for handling publishing events
 			producer = session.getMessageProducer(new JCSMPStreamingPublishCorrelatingEventHandler() {
@@ -163,29 +165,15 @@ public class StatefulControl extends AbstractParentApp {
 						String[] levels = topic.split("/");
 						try {
 							Command command = Command.valueOf(levels[2].toUpperCase());
-							if (stateMap.containsKey(command)) {
-								Object value = parseControlMessageValue(levels, command);
-								if (value != null) {
-									if (stateMap.get(command).equals(value)) {
-										logger.info("Same " + command + " value as before");
-									} else {
-										logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
-										stateMap.put(command, value);
-									}
-								}  // else value == null, so nothing to do...
-							} else {
-								logger.info("Ignoring...");
-							}
-						} catch (IllegalCommandSyntaxException | IllegalControlTopicException e) {
-							logger.info("Exception thrown for control message: " + e.getMessage());
-						} catch (ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
-							logger.info("Exception thrown for control message: " + e.getMessage());
+							handleCommandUpdate(command, levels.length > 3 ? levels[3] : null);
+						} catch (RuntimeException e) {
+							logger.warn("Exception thrown for control message: " + topic, e);
 						}
 						if (message.getReplyTo() != null) {  // control message needs reply!  probably due to REST Gateway mode (otherwise it'd just time out)
 							sendReplyMsg("\n", message);  // add some newlines so the terminal prompt goes back to normal position 
 						}
 					} else if (topic.equals("pq-demo/state/request")) {  // someone is requesting the current state
-						logger.info("Someone is requesting current state: " + buildStatePayload());
+						logger.debug("Someone is requesting current state: " + buildStatePayload());
 						if (message.getReplyTo() != null) {  // req/rep message
 							sendReplyMsg(buildStatePayload(), message);
 						} else {  // broadcast to all... when would this happen?????  How could a request come in with no reply-to?
@@ -207,7 +195,26 @@ public class StatefulControl extends AbstractParentApp {
 					}
 				}
 			});
-	
+
+			final Thread shutdownThread = new Thread(new Runnable() {
+	            public void run() {
+	            	try {
+		                System.out.println("Shutdown detected, graceful quitting begins...");
+		    			isShutdown = true;
+		    			isConnected = false;  // shutting down
+		    			consumer.stop();  // stop the consumers
+		    			Thread.sleep(500);
+		    			session.closeSession();  // will also close producer and consumer objects
+	            	} catch (InterruptedException e) {
+	            		// ignore, quitting!
+	            	} finally {
+	            		System.out.println("Goodbye!" + CharsetUtils.WAVE);
+	            	}
+	            }
+	        });
+	        shutdownThread.setName("Shutdown-Hook");
+	        Runtime.getRuntime().addShutdownHook(shutdownThread);
+			
 			// Ready to start the application, just some subscriptions
 			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-all/>"));
 			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));
@@ -218,16 +225,55 @@ public class StatefulControl extends AbstractParentApp {
 			System.out.printf("%n%s connected and subscribed. Press [ENTER] to quit.%n", APP_NAME);
 			sendDirectMsg("pq-demo/state/update", buildStatePayload());  // broadcast my initial state, so any currently running apps get re-synced to my state
 	
-			while (System.in.available() == 0 && !isShutdown) {
-				Thread.sleep(500);
+			while (!isShutdown) {
+	            Thread.sleep(50);  // loopy loop
+	            if (System.in.available() > 0) {
+	            	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+	            	String line = reader.readLine();
+	            	if (line == null || line.isBlank()) {
+	            		logger.warn("Ignoring!");
+	            		continue;
+	            	}
+	            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
+	            		System.out.println("Killing app...");
+	            		Runtime.getRuntime().halt(0);
+	            	} else if ("quit".equals(line.toLowerCase())) {
+	            		isShutdown = true;
+	            		continue;
+	            	}
+	            	String[] levels = line.split(" ");
+	            	if (levels.length > 2) {
+	            		logger.warn("Ignoring '" + line + "', too many params.");
+	            		continue;
+	            	}
+	            	try {
+	            		Command command = Command.valueOf(levels[0].toUpperCase());
+	            		handleCommandUpdate(command, levels.length > 1 ? levels[1] : null);
+					} catch (RuntimeException e) {
+						logger.warn("Ignoring! " + e.getMessage());
+	            	}
+	            }
 			}
-			isShutdown = true;
-			isConnected = false;  // shutting down
-			session.closeSession();  // will also close producer and consumer objects
-			Thread.sleep(500);
-			System.out.println("Main thread quitting.");
+			System.out.println("Main thread exiting.");
 		} finally {
 			System.out.println("Final state: (use topic 'pq-demo/state/force' with this payload to reset) " + buildStatePayload());
+		}
+	}
+
+	protected static void handleCommandUpdate(Command command, String param) throws IllegalCommandSyntaxException {
+		if (stateMap.containsKey(command)) {
+			Object value = parseControlMessageValue(command, param);
+			if (value != null) {
+				if (stateMap.get(command).equals(value)) {
+					logger.debug("Same " + command + " value as before");
+				} else {
+					logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
+					stateMap.put(command, value);
+					sendDirectMsg("pq-demo/state/update", buildStatePayload());
+				}
+			}  // else value == null, so nothing to do...
+		} else {
+			logger.debug("Ignoring!");
 		}
 	}
 }

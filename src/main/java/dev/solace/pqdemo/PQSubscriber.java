@@ -19,7 +19,6 @@ package dev.solace.pqdemo;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -59,7 +58,7 @@ public class PQSubscriber extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.STATE, Command.DISP, Command.SLOW, Command.ACKD, Command.PROB));
 	}
 
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("stats-print"));
+    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
 	private static volatile int msgRecvCounter = 0;                 // num messages received per sec
 	// this is just for visualization, makes things align better...
@@ -70,7 +69,7 @@ public class PQSubscriber extends AbstractParentApp {
 	private static volatile ScaledPoisson slowPoissonDist = new ScaledPoisson(10);  // unused initial value
 
 	private static String queueName = null;  // passed from arguments
-	private static String queueNameSimple = null;  // used for ACK proc messages
+	private static String queueNameSimple = null;  // used in topic for ACK proc messages (don't want any wacky chars)
 	static String currentFlowStatus = FlowEvent.FLOW_INACTIVE.name();  // default starting value
 
 	// remember to add log4j2.xml to your classpath
@@ -98,14 +97,6 @@ public class PQSubscriber extends AbstractParentApp {
 				sequencer.startCheckingSequenceNums();
 			}
 		}
-		//		if (updated.contains(Command.SUBWIN)) {
-		//			subAdWinSize = (int)stateMap.get(Command.SUBWIN);
-		//			try {
-		//				session.setProperty(JCSMPProperties.SUB_ACK_WINDOW_SIZE, subAdWinSize);
-		//			} catch (JCSMPException e) {
-		//				logger.warn("Could not updated subscriber AD window size");
-		//			}
-		//		}
 	}
 
 	private static void publishPrintStats() {
@@ -125,12 +116,12 @@ public class PQSubscriber extends AbstractParentApp {
 		
 		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
 		try {
-			String logEntry = String.format("(%s) Rec'ed msgs/s: %,d, gap: %d, oos: %d, red: %d, dupes: %d, newKs: %d",
+			String logEntry = String.format("(%s) Msgs: %d, gaps: %d, OoS: %d, reD: %d, dupes: %d, newKs: %d",
         			myName, msgRecvCounter, stats.get("gaps"), stats.get("oos"), stats.get("red"), stats.get("dupes"), stats.get("newKs"));
-			if (stateMap.get(Command.DISP).equals("agg")) logger.info(logEntry);
-			else logger.debug(logEntry);
+			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
+			else logger.trace(logEntry);
 		} catch (Exception e) {
-			logger.error(e);
+			logger.error("Had an issue when trying to print stats!", e);
 		}
 		msgRecvCounter = 0;
 		sequencer.clearStats();
@@ -227,7 +218,7 @@ public class PQSubscriber extends AbstractParentApp {
 				@Override
 				public void handleEvent(Object source, FlowEventArgs event) {
 					// Flow events are usually: active, reconnecting (i.e. unbound), reconnected, active
-					logger.warn("### Received a Flow event: " + event);
+					logger.info("### Received a Flow event: " + event);
 					currentFlowStatus = event.getEvent().name();
 					sendDirectMsg("pq-demo/event/" + event.getEvent().name() + "/" + session.getProperty(JCSMPProperties.CLIENT_NAME));
 					// try disabling and re-enabling the queue to see in action
@@ -251,15 +242,14 @@ public class PQSubscriber extends AbstractParentApp {
             public void run() {
             	try {
 	                System.out.println("Shutdown detected, graceful quitting begins...");
-	                logger.warn("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
 	        		flowQueueReceiver.stop();  // stop the queue consumer
 //	        		Thread.sleep(1500);  // ACKs should flush before session ends, but this is me being paranoid
-	        		Thread.sleep(1000 + (Integer)stateMap.get(Command.ACKD));  // ACKs should flush before session ends, but this is me being paranoid
+	        		Thread.sleep(1500 + (Integer)stateMap.get(Command.ACKD));  // ACKs should flush before session ends, but this is me being paranoid
 	                publishPrintStats();
 	        		isConnected = false;  // shutting down
 	        		flowQueueReceiver.close();
-	        		Thread.sleep(1500);
+	        		Thread.sleep(1000);
 	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
 	        		singleThreadPool.shutdown();  // stop printing stats
@@ -267,13 +257,14 @@ public class PQSubscriber extends AbstractParentApp {
             	} catch (InterruptedException e) {
             		// ignore, quitting!
             	} finally {
-            		System.out.println("Goodbye...");
+            		System.out.println("Goodbye!" + CharsetUtils.WAVE);
             	}
             }
         });
+        shutdownThread.setName("Shutdown-Hook");
         Runtime.getRuntime().addShutdownHook(shutdownThread);
 		
-        logger.info(APP_NAME + " connected, and running. Press Ctrl-C to quit, or [Esc]+[ENTER] to kill.");
+        logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
 
 		// Ready to start the application
 		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/update"));  // listen to state update messages from StatefulControl
@@ -289,17 +280,13 @@ public class PQSubscriber extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("".equals(line)) continue;
-            	if (line == null || line.charAt(0) == 27) {
+            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
-            	} else {
-            		System.out.println(Arrays.toString(line.getBytes()));
             	}
             }
 		}
-		System.out.println("Main thread quitting.");
-		logger.warn("Main thread quitting.");
+		System.out.println("Main thread exiting.");
 	}
 
 
@@ -339,7 +326,7 @@ public class PQSubscriber extends AbstractParentApp {
 				if (knownDupe) {
 					// we've seeen this before, so probably have sent to backend/downstream OrderChecker already
 					// should really properly check that, it could have got NACKed maybe...
-					if (!msg.getRedelivered()) logger.warn("### UH, I got a message that I already know about, but it's not flagged as redelivered!?!?");
+					if (!msg.getRedelivered()) logger.error("### UH, I got a message that I already know about, but it's not flagged as redelivered!?!?");
 					// OK technically, we should REALLY double-check that my previous proc message successfully ACKed by the broker before ACKing this one...
 					
 					// LATEST, nope: I'm commenting this out... pass the dupes onto the backend OrderChecker
@@ -390,6 +377,8 @@ public class PQSubscriber extends AbstractParentApp {
 			if (e instanceof JCSMPTransportException) {  // all reconnect attempts failed
 				isShutdown = true;  // let's quit; or, could initiate a new connection attempt
 			} else {
+				logger.warn("Not a transport exception, but stopping Queue Flow Receiver, so no more messages.");
+				logger.warn("Maybe I should try to reopn the Flow?  Or disconnect?  Tell Aaron if you see this message");
 				// Generally unrecoverable exception, probably need to recreate and restart the flow
 				flowQueueReceiver.close();
 				// add logic in main thread to restart FlowReceiver, or can exit the program

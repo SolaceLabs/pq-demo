@@ -65,7 +65,7 @@ public class PQPublisher extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.KEYS, Command.RATE, Command.PROB, Command.DELAY, Command.SIZE));
 	}
 
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("stats-print"));
+    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
 	private static volatile String topicString = null;  // passed in from command line
 
@@ -91,8 +91,10 @@ public class PQPublisher extends AbstractParentApp {
 	static int maxLengthKey = 1;
 	static int maxLengthSeqNo = 1;
 	static int maxLengthRate = 1;
+	
+	// these are flags used when we need to clear some maps/datastructures, signalling from another thread so we don't cause concurrent modifcations
 	private static volatile boolean blankTheSeqNosFlag = false;
-
+	private static volatile boolean blankTheResendQ = false;
 
 
 	private static void queueResendMsg(MessageKeyToResend futureMsg) {
@@ -132,11 +134,23 @@ public class PQPublisher extends AbstractParentApp {
 		maxLengthSeqNo = 1;
 		blankTheSeqNosFlag = false;  // task completed, reset the flag
 	}
+	
+	// call this from main thread to avoid any potential threading/concurrency issues accessing shared objects
+	private static void blankResendQ() {
+		assert Thread.currentThread().getName().equals("main");
+		timeSortedQueueOfResendMsgs.clear();
+		pqkeyResendMsgsMap.clear();
+		blankTheResendQ = false;  // task completed, reset the flag
+	}
+	
 
 	/** call this after stateMap has changed, called from API callback thread though
 	 * @param updated */
 	static void updateVars(EnumSet<Command> updated) {
-		if (updated.contains(Command.PAUSE)) isPaused = !isPaused;  // pause/unpause
+		if (updated.contains(Command.PAUSE)) {
+			logger.info((isPaused ? "Unpausing" : "Pausing") + " publishing...");
+			isPaused = !isPaused;  // pause/unpause
+		}
 		if (updated.contains(Command.RATE)) {
 			if ((Integer)stateMap.get(Command.RATE) == 0) isPaused = true;  // pause if we set the rate to 0
 			else isPaused = false;  // else we are setting it to something > 0, so if we're paused just unpause
@@ -146,10 +160,47 @@ public class PQPublisher extends AbstractParentApp {
 				// this is coming in on the API dispatch thread
 				// so rather than clear the Map here, set a flag to blank from main thread
 				blankTheSeqNosFlag = true;
+			} else {  // changing the probability, let's blank the resendQ
+				logger.info("Change in republish probability, blanking the resendQ");
+				blankTheResendQ = true;
 			}
 		}
 		if (updated.contains(Command.DELAY)) {
-			if ((Integer)stateMap.get(Command.DELAY) != 0) delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
+			if ((Integer)stateMap.get(Command.DELAY) != 0) {
+				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
+			}
+			logger.info("Change in republish delay, blanking the resendQ");
+			blankTheResendQ = true;
+		}
+	}
+	
+	private static void publishPrintStats() {
+		try {
+			String logEntry = String.format("(%s) Msgs: %" + maxLengthRate + "d, resendQ: %d, NACKs: %d  [ks=%s, p=%.2f, d=%d]",
+					myName,
+					msgSentCounter,
+					timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size(),
+					msgNackCounter,
+					(Integer)stateMap.get(Command.KEYS) == Integer.MAX_VALUE ? "max" : Integer.toString((Integer)stateMap.get(Command.KEYS)),
+					(Double)stateMap.get(Command.PROB),
+					(Integer)stateMap.get(Command.DELAY));
+			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
+			else logger.trace(logEntry);
+			JSONObject jo = new JSONObject()
+					.put("rate", msgSentCounter)
+					.put("keys", stateMap.get(Command.KEYS))
+					.put("prob", stateMap.get(Command.PROB))
+					.put("delay", stateMap.get(Command.DELAY))
+					.put("activeFlow", !producer.isClosed())
+					.put("nacks", msgNackCounter)
+					.put("paused", isPaused)
+					.put("resendQ", timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size())
+					;
+			sendDirectMsg("pq-demo/stats/pub/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
+			msgSentCounter = 0;
+			msgNackCounter = 0;
+		} catch (Exception e) {
+			logger.error("Had an issue when trying to print stats!", e);
 		}
 	}
 
@@ -234,64 +285,40 @@ public class PQPublisher extends AbstractParentApp {
 		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgSentCounter).length());
 		singleThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;  // shutting down
-			try {
-				String logEntry = String.format("(%s) Pub'ed msgs/s: %" + maxLengthRate + "d; resend Q size: %d; [ks=%s, p=%.2f, d=%d]",
-						myName,
-						msgSentCounter,
-						timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size(),
-						(Integer)stateMap.get(Command.KEYS) == Integer.MAX_VALUE ? "max" : Integer.toString((Integer)stateMap.get(Command.KEYS)),
-						(Double)stateMap.get(Command.PROB),
-						(Integer)stateMap.get(Command.DELAY));
-				if (stateMap.get(Command.DISP).equals("agg")) logger.info(logEntry);
-				else logger.debug(logEntry);
-				JSONObject jo = new JSONObject()
-						.put("rate", msgSentCounter)
-						.put("keys", stateMap.get(Command.KEYS))
-						.put("prob", stateMap.get(Command.PROB))
-						.put("delay", stateMap.get(Command.DELAY))
-						.put("activeFlow", !producer.isClosed())
-						.put("nacks", msgNackCounter)
-						.put("paused", isPaused)
-						.put("resendQ", timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size())
-						;
-				sendDirectMsg("pq-demo/stats/pub/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
-				msgSentCounter = 0;
-				msgNackCounter = 0;
-			} catch (RuntimeException e) {
-				e.printStackTrace();
-				System.exit(1);
-			}
+			publishPrintStats();
 		}, 1, 1, TimeUnit.SECONDS);
 
 
         final Thread shutdownThread = new Thread(new Runnable() {
             public void run() {
             	try {
-	                System.out.println("Shutdown detected, quitting...");
+	                System.out.println("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
 	        		consumer.stop();  // stop the consumers
 	        		Thread.sleep(1500);
 	        		isConnected = false;  // shutting down
-	        		Thread.sleep(1000);
+	        		publishPrintStats();  // one last time
+	        		Thread.sleep(100);
 	        		singleThreadPool.shutdown();  // stop printing/sending stats
-	        		producer.close();
-	        		session.closeSession();  // will also close consumer object
+	        		session.closeSession();  // will close consumer and producer objects
             	} catch (InterruptedException e) {
             		// ignore, quitting!
             	} finally {
-            		System.out.println("Goodbye...");
+            		System.out.println("Goodbye!" + CharsetUtils.WAVE);
             	}
             }
         });
+        shutdownThread.setName("Shutdown-Hook");
         Runtime.getRuntime().addShutdownHook(shutdownThread);
 		
-        logger.info(APP_NAME + " connected, and running. Press Ctrl-C to quit, or \"k\"+[ENTER] to kill.");
+        logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
 
 //		final BytesMessage message = JCSMPFactory.onlyInstance().createMessage(BytesMessage.class);  // preallocate
 		long now = System.nanoTime();
 		long next = now;  // when to publish the next message, based on current rate (first message, send now)
 		while (!isShutdown) {  // loop until shutdown flag, or ctrl-c, or "k"ill
 			if (blankTheSeqNosFlag) blankTheSeqNos();  // check if we've disabled order/sequence checking
+			if (blankTheResendQ) blankResendQ();
 			// ok, time to send a message now!
 			// advance the 'next' timer for when the _next_ message is supposed to go
 			next += 1_000_000_000L / (Integer)stateMap.get(Command.RATE);  // time to send next message in nanos
@@ -393,21 +420,21 @@ public class PQPublisher extends AbstractParentApp {
 					final long timeToSendNext = nanoTime + (msecDelay * 1_000_000L);
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
 					queueResendMsg(futureMsg);
-					String inner = String.format("[%%%ds, %%%dd, %d]", maxLengthKey, maxLengthSeqNo, timeSortedQueueOfResendMsgs.size());
-					String logEntry = String.format("(%s) Sending [key, seq]: " + inner + ", resending in %dms",
+					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
+					String logEntry = String.format("(%s) Sending [key, seq]: " + inner + ", resend in %dms",
 							myName, pqKeyString, seqNo, msecDelay);
 					if (stateMap.get(Command.DISP).equals("each")) {
-						logger.info(logEntry);
-					} else {
 						logger.debug(logEntry);
+					} else {
+						logger.trace(logEntry);
 					}
 				} else {
-					String inner = String.format("[%%%ds, %%%dd, %d]", maxLengthKey, maxLengthSeqNo, timeSortedQueueOfResendMsgs.size());
+					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
 					String logEntry = String.format("(%s) Sending [key, seq]: " + inner, myName, pqKeyString, seqNo);
 					if (stateMap.get(Command.DISP).equals("each")) {
-						logger.info(logEntry);
-					} else {
 						logger.debug(logEntry);
+					} else {
+						logger.trace(logEntry);
 					}
 				}
 				try {
@@ -436,13 +463,13 @@ public class PQPublisher extends AbstractParentApp {
 		   if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("k".equals(line)) {
+            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}
-            }
+		    }
 		}
-		logger.info("Main thread quitting.");
+		System.out.println("Main thread exiting.");
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -483,7 +510,7 @@ public class PQPublisher extends AbstractParentApp {
 				boolean success = nackedMsgsToRequeue.offer(msg);
 				assert success;
 			} else {  // not a NACK, but some other error (ACL violation for Direct, connection loss, message too big, ...)
-				logger.warn(String.format("### Producer handleErrorEx() callback: %s%n", cause));
+				logger.error(String.format("### Producer handleErrorEx() callback: %s%n", cause));
 				if (cause instanceof JCSMPTransportException) {  // all reconnect attempts failed
 					isShutdown = true;  // let's quit; or, could initiate a new connection attempt
 				} else if (cause instanceof JCSMPErrorResponseException) {  // might have some extra info

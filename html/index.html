@@ -72,8 +72,9 @@
       &nbsp;
       <button id="button-ctrl" onClick="sendCtrlMsg();" disabled>Submit</button>
       <p style="font-size:50%"">&nbsp;</p>
-      <button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/kill');" title="Death">Send Kill message 💀</button>
-      &nbsp;&nbsp;<button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/quit');" title="Graceful">Send Quit message 😇</button>
+      <button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/quit');" title="Graceful">Send <b>Quit</b> All message 😇</button>
+      &nbsp;&nbsp;
+      <button style="font-weight: 500" onClick="sendCtrlMsgToTopic('pq-demo/control-all/kill');" title="Death">Send <b>Kill</b> All message 💀</button>
       <span id="nacks" style="visibility: hidden">
         <p style="font-size:50%">&nbsp;</p>
         Publish topic ACL: <input id="acl" type="text" size="5" value="pq12/>"/>

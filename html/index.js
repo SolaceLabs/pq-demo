@@ -816,9 +816,6 @@ function publishKillMessage(clientName) {
 function bounceClient(clientName) {
   if (!sempConn) return;
   console.log(getTs() + '### bounce client triggered for ' + clientName);  // to help correlate with app logs
-  let headers = new Headers();
-  headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
-  
   // const postRequest = '<rpc><show><queue><name>' + queueObj.partitionPattern + '</name></queue></show></rpc>';
   const postRequest = '<rpc><admin><client><name>' + clientName + '</name><vpn-name>' + queueObj.msgVpnName + '</vpn-name><disconnect/></client></admin></rpc>';
   const start = Date.now();
@@ -842,9 +839,7 @@ function bounceClient(clientName) {
 function toggleAcl(clientName, type, topic) {
   if (!sempConn) return;
   console.log(getTs() + '### toggle ' + type + ' ACL triggered for ' + clientName);  // to help correlate with app logs
-  let headers = new Headers();
   headers.set('Content-Type', 'application/json');
-  headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
   let otherHeaders = {
     method: 'GET',
     credentials: 'same-origin',
@@ -1765,6 +1760,68 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
 
 
 
+function getQueueDetails(sempRequestPossiblyPaged) {
+
+
+
+  fetch(sempRequestPossiblyPaged, {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-cache',
+    mode: "cors",
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(json => {
+      console.log(json);
+      // now, this response will either contain the info we want, or we might have to ask a 2nd timd following the paging cookie
+      if (json.data && json.data.length > 0) {  // good! this response has data
+        // var millis = Date.now() - start;
+        // console.log("Time for two SEMPv2 queue details queries: " + millis + "ms");
+        var pqName = json.data[0].queueName
+        // console.log(pqName);
+        queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
+        // console.log(pqName.split("/").splice(0,2).join("/") + "/*");
+        // console.log(queueObj.partitionPattern);
+        // done, that's enough... time to start the SEMPv1 polling
+        activateSemp();
+        drawQueue();  // shows the access type + num parts (and draws the partitions)
+        updateLines();  // adds in the unconnected flow lines
+      } else if (json.meta.paging.nextPageUri) {
+        fetch(json.meta.paging.nextPageUri, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-cache',
+          mode: "cors",
+          headers: headers
+        })
+          .then(response2 => response2.json())
+          .then(json2 => {
+            console.log(json2);
+            // var millis = Date.now() - start;
+            // console.log("Time for three SEMPv2 queue details queries: " + millis + "ms");
+            var pqName = json2.data[0].queueName;
+            queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
+            // done, that's enough... time to start the SEMPv1 polling
+            activateSemp();
+            drawQueue();  // shows the access type + num parts (and draws the partitions)
+            updateLines();  // adds in the unconnected flow lines
+          })
+          .catch(error4 => { console.error("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
+      } else {
+        console.error("Issue is SEMPv2 trying to get partition names..!")
+      }
+    })
+    .catch(error3 => { console.error("Could not fetch individual partitions details via SEMPv2"); console.error(error3); });
+
+
+
+
+
+}
+
+let headers = new Headers();  // we'll need these multiple times
+
 function trySempConnectivity(props) {
 
   // SEMPv1
@@ -1775,13 +1832,12 @@ function trySempConnectivity(props) {
   <partition-rebalance-status>ready</partition-rebalance-status>
   <partition-scale-status>ready</partition-scale-status> */
 
-  const sempQueueInfoSuffix = '/SEMP/v2/config/msgVpns/{vpn}/queues/';// + queueObj.name;
+  // const sempQueueInfoSuffix = '/SEMP/v2/config/msgVpns/{vpn}/queues/';// + queueObj.name;
   const sempPartitionsSuffix = '/SEMP/v2/monitor/msgVpns/{vpn}/queues?where=partitionQueueName==';// + queueObj.name;
 
-  let headers = new Headers();
   headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
   var start = Date.now();
-  fetch(props.sempUrl + sempQueueInfoSuffix.replace("{vpn}", props.vpn) + queueObj.name, {
+  fetch(props.sempUrl + '/SEMP/v2/config/msgVpns/' + props.vpn + '/queues/' + queueObj.name, {
     method: 'GET',
     credentials: 'same-origin',
     cache: 'no-cache',
@@ -1790,7 +1846,7 @@ function trySempConnectivity(props) {
   })
     .then(response => response.json())
     .then(json => {
-      // console.log(json);
+      console.log(json);
       if (json.meta.responseCode != 200) {
         console.error("Error trying to connect via SEMPv2");
         console.error(json.meta);
@@ -1812,7 +1868,14 @@ function trySempConnectivity(props) {
         queueObj.partitionRebalanceDelay = json.data.partitionRebalanceDelay;
         queueObj.partitionRebalanceMaxHandoffTime = json.data.partitionRebalanceMaxHandoffTime;
         // console.log(props.sempUrl + sempPartitionsSuffix + queueObj.name);
-        fetch(props.sempUrl + sempPartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name /* + '&count=20' */, {
+
+        getQueueDetails(props.sempUrl + sempPartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
+
+
+/* 
+
+
+        fetch(props.sempUrl + sempPartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name, {
           method: 'GET',
           credentials: 'same-origin',
           cache: 'no-cache',
@@ -1821,9 +1884,10 @@ function trySempConnectivity(props) {
         })
           .then(response => response.json())
           .then(json => {
+            console.log(json);
             // now, this response will either contain the info we want, or we might have to ask a 2nd timd following the paging cookie
             if (json.data && json.data.length > 0) {  // good! this response has data
-              var millis = Date.now() - start;
+              // var millis = Date.now() - start;
               // console.log("Time for two SEMPv2 queue details queries: " + millis + "ms");
               var pqName = json.data[0].queueName
               // console.log(pqName);
@@ -1844,8 +1908,9 @@ function trySempConnectivity(props) {
               })
                 .then(response2 => response2.json())
                 .then(json2 => {
-                  var millis = Date.now() - start;
-                  console.log("Time for three SEMPv2 queue details queries: " + millis + "ms");
+                  console.log(json2);
+                  // var millis = Date.now() - start;
+                  // console.log("Time for three SEMPv2 queue details queries: " + millis + "ms");
                   var pqName = json2.data[0].queueName;
                   queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
                   // done, that's enough... time to start the SEMPv1 polling
@@ -1859,6 +1924,9 @@ function trySempConnectivity(props) {
             }
           })
           .catch(error3 => { console.error("Could not fetch individual partitions details via SEMPv2"); console.error(error3); });
+
+ */
+
       } else {     // end of parition queue block, so this not a partitioned queue!!!
         console.log("This is an Exclusive queue or regular Non-Excl queue");
         var millis = Date.now() - start;
@@ -1920,9 +1988,6 @@ function sempV1Poll(postRequest, statsToFindArray) {
   // let postRequest = '<rpc><show><queue><name>' + queueObj.partitionPattern + '</name><rates/></queue></show></rpc>';  // will work for PQs or non-PQs
   // let postRequest = '<rpc><show><queue><name>' + queueObj.partitionPattern + '</name></queue></show></rpc>';  // will work for PQs or non-PQs
 
-  let headers = new Headers();
-  // headers.set('Content-Type', 'text/json');
-  headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
   start = Date.now();
   fetch(sempv1, {
     method: 'POST',
@@ -1942,8 +2007,15 @@ function sempV1Poll(postRequest, statsToFindArray) {
 }
 
 
-var sempTimerRates;
-var sempTimerDepth;
+var sempRatesTimerHandle;
+var sempDepthTimerHandle;
+
+function killSemp() {
+  if (sempDepthTimerHandle) clearTimeout(sempDepthTimerHandle);
+  if (sempRatesTimerHandle) clearTimeout(sempRatesTimerHandle);
+  sempConn = false;
+  updateConnBox();
+}
 
 function activateSemp() {
   console.log("### ACTIVATING SEMP!");
@@ -1954,12 +2026,12 @@ function activateSemp() {
     document.querySelector(':root').style.setProperty('--semp-dep-pointer', 'all');  // set the stylesheet to allow clicking on the 'bounce' icon
 
     // start timers
-    sempTimerRates = setInterval(function ratesSemp() {
+    sempRatesTimerHandle = setInterval(function ratesSemp() {
       sempV1Poll(sempV1Requests.rates, ['current-ingress-rate-per-second', 'current-egress-rate-per-second']);
     }, 777);
     // stagger it
     setTimeout(function () {
-      sempTimerDepth = setInterval(function depthSemp() {
+      sempDepthTimerHandle = setInterval(function depthSemp() {
         sempV1Poll(sempV1Requests.detail, ['num-messages-spooled', 'topic-subscription-count']);
       }, 777);
     }, 388);
@@ -2117,13 +2189,14 @@ function updateStatsFromSemp(stats) {
 
 var params = window.location.search.substring(1);
 var props = {};
+var showPublishAcl = false;
 
 console.log("PARAMS: " + params);
 params = params.split('&'); // first element of split
 params.forEach(p => {
   var blah = p.split('=');
   switch (blah[0]) {
-    case 'queue': props.queue = blah[1]; queueObj.name = props.queue; document.getElementById("acl").value = queueObj.name + "/>"; break; //.split(","); break;
+    case 'queue': props.queue = blah[1]; queueObj.name = props.queue; document.getElementById("acl").value = queueObj.name + "/>"; break;
     case 'mqttUrl': props.mqttUrl = blah[1]; break;
     case 'user': props.user = blah[1]; break;
     case 'pw': props.pw = blah[1]; break;
@@ -2131,7 +2204,8 @@ params.forEach(p => {
     case 'sempUrl': props.sempUrl = blah[1]; break;
     case 'sempUser': props.sempUser = blah[1]; break;
     case 'sempPw': props.sempPw = blah[1]; break;
-    case '': break;
+    case 'nacks': if (blah.length == 1) showPublishAcl = true; else console.log('nope'); break;
+    case '': break;  // handles a trailing & or something...
     default: writeToScreen("<b>ERROR: DIDN'T PARSE THIS URL PARAM: '" + p + "'</b>");
   }
 });
@@ -2163,6 +2237,7 @@ if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !pr
   // document.getElementById('instructions').style.visibility = 'visible';
   document.getElementById('instructions').hidden = false;
   if (props.sempUrl) {
+    headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
     trySempConnectivity(props);
   } else {
     console.log("Not attempting SEMP connectivity");

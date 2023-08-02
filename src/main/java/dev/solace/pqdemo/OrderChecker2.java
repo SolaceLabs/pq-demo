@@ -20,11 +20,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,7 +50,7 @@ public class OrderChecker2 extends AbstractParentApp {
 		stateMap.put(Command.PROB, Command.PROB.defaultVal);  // watching this to know if sequencing is disabled
     }
     
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("stats-print"));
+    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
     private static volatile int msgRecvCounter = 0;                 // num messages received per sec
 	// this is just for visualization, makes things align better...
@@ -87,12 +89,12 @@ public class OrderChecker2 extends AbstractParentApp {
 
 		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
 		try {
-			String logEntry = String.format("(%s) Rec'ed msgs/s: %,d, missing: %d, gap: %d, oos: %d, red: %d, dupes: %d, newKs: %d",
+			String logEntry = String.format("(%s) Msgs: %,d, missing: %d, gaps: %d, oos: %d, red: %d, dupes: %d, newKs: %d",
         			myName, msgRecvCounter, stats.get("missing"), stats.get("gaps"), stats.get("oos"), stats.get("red"), stats.get("dupes"), stats.get("newKs"));
-			if (stateMap.get(Command.DISP).equals("agg")) logger.info(logEntry);
-			else logger.debug(logEntry);
+			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
+			else logger.trace(logEntry);
 		} catch (Exception e) {
-			logger.error(e);
+			logger.error("Had an issue when trying to print stats!", e);
 		}
         msgRecvCounter = 0;
         sequencer.clearStats();
@@ -179,7 +181,7 @@ public class OrderChecker2 extends AbstractParentApp {
         	publishPrintStats();
         }, 1, 1, TimeUnit.SECONDS);
         
-        logger.info(APP_NAME + " connected, and running. Press Ctrl-C to quit, or \"k\"+[ENTER] to kill.");
+        logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
         
         // Ready to start the application, just add some subs
         session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/proc/>"));  // listen to "processed" msg receipts from subs
@@ -192,7 +194,7 @@ public class OrderChecker2 extends AbstractParentApp {
         final Thread shutdownThread = new Thread(new Runnable() {
             public void run() {
             	try {
-	                System.out.println("Shutdown detected, quitting...");
+	                System.out.println("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
 	                consumer.stop();
 	        		Thread.sleep(1000);
@@ -204,10 +206,11 @@ public class OrderChecker2 extends AbstractParentApp {
             	} catch (InterruptedException e) {
             		// ignore, quitting!
             	} finally {
-            		System.out.println("Goodbye...");
+            		System.out.println("Goodbye!" + CharsetUtils.WAVE);
             	}
             }
         });
+        shutdownThread.setName("Shutdown-Hook");
         Runtime.getRuntime().addShutdownHook(shutdownThread);
         
         while (!isShutdown) {
@@ -215,28 +218,30 @@ public class OrderChecker2 extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("k".equals(line)) {
+            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}
             }
         }
-		System.out.println("Main thread quitting.");
+		System.out.println("Main thread exiting.");
     }
     
-//    static AtomicInteger lastSubNum = new AtomicInteger(0);
-//    static Map<String, Integer> subNums = new HashMap<>();
-//    static String makeColThing(int pos) {
-//    	StringBuilder sb = new StringBuilder();
-//    	for (int i=0; i<pos; i++) {
-//    		sb.append(' ');
-//    	}
-//    	sb.append('●');
-//    	for (int i=pos; i<lastSubNum.get()-1; i++) {
-//    		sb.append(' ');
-//    	}
-//    	return sb.toString();
-//    }
+    static AtomicInteger lastSubNum = new AtomicInteger(0);
+    static Map<String, Integer> subNums = new HashMap<>();
+    
+    /** this helper app will put a bullet in a spaced column to help make it easier to see who sent a message in the logs */
+    static String makeColThing(int pos) {
+    	StringBuilder sb = new StringBuilder();
+    	for (int i=0; i<pos; i++) {
+    		sb.append(' ');
+    	}
+    	sb.append(CharsetUtils.SUB_CHAR);
+    	for (int i=pos; i<lastSubNum.get()-1; i++) {
+    		sb.append(' ');
+    	}
+    	return sb.toString();
+    }
     
     static void dealWithProcMessage(BytesXMLMessage msg) {
     	msgRecvCounter++;
@@ -244,10 +249,6 @@ public class OrderChecker2 extends AbstractParentApp {
     		// pq-demo/proc/pq3/sub-abc1/AB234/23  ~or~  pq-demo/proc/pq12/sub-eiof/XY456/01/red
     		final String[] levels = msg.getDestination().getName().split("/");
     		String q = levels[2];
-//    		if (!queueNameSimple.equals(q)) {
-//    			logger.info("Ignoring PROC message on topic " + msg.getDestination().getName() + ", wrong queue.");
-//    			return;
-//    		}
     		String sub = levels[3];
 //    		if (!subNums.containsKey(sub)) {
 //    			subNums.put(sub, lastSubNum.getAndIncrement());

@@ -16,7 +16,7 @@
 
 package dev.solace.pqdemo;
 
-public class IllegalControlTopicException extends IllegalArgumentException {
+public class IllegalContsrolTopicException extends IllegalArgumentException {
 
 	private static final long serialVersionUID = 1L;
 

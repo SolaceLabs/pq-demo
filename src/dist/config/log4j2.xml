@@ -5,14 +5,15 @@
   </Properties -->
   <Appenders>
     <Console name="console" target="SYSTEM_OUT">
-      <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
-      <PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %c{1} %-5level - %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=white, DEBUG=bright_black, TRACE=green}"/>
+      <ThresholdFilter level="debug" onMatch="ACCEPT" onMismatch="DENY"/>
+      <PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %c{1} %-5level - %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/>
     </Console>
     <!-- File name="logfile" fileName="log/pqdemo.log" -->  <!-- will be relative to wherever you run -->
     <File name="logfile" fileName="log/${sys:logfile_name}.log">  <!-- will be relative to wherever you run -->
-      <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+      <ThresholdFilter level="trace" onMatch="ACCEPT" onMismatch="DENY"/>
       <PatternLayout>
         <Pattern>%d %c{1.} [%t] %-5level %m%n</Pattern>
+
         <!--Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %logger{5.} - %msg%n</Pattern-->
         <!--JSONLayout/-->
       </PatternLayout>
@@ -23,7 +24,7 @@
     <!-- e.g. '-Djcsmp_api_log_level=debug', or use the Gradle env variable: 'export JAVA_OPTS=-Djcsmp_api_log_level=debug' -->
     <!-- or override this file completely by specifying your own: 'export JAVA_OPTS=-Dlog4j2.configurationFile=log4j2-override.xml' -->
     <Logger name="com.solacesystems" level="${sys:jcsmp_api_log_level:-info}"/>
-    <Logger name="dev.solace.pqdemo" level="${sys:pqdemo_log_level:-debug}"/>
+    <Logger name="dev.solace.pqdemo" level="${sys:pqdemo_log_level:-trace}"/>
     <Root level="${sys:root_log_level:-info}">
       <AppenderRef ref="console"/>
       <AppenderRef ref="logfile"/>

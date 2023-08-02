@@ -54,7 +54,7 @@ public abstract class AbstractParentApp {
     static volatile boolean isShutdown = false;             // are we done?
     static volatile boolean isConnected = false;
     
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(DaemonThreadFactory.INSTANCE.withName("msg-send"));
+    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Message-Sender"));
 
     static JCSMPSession session = null;
     static String myName = null;  // will initialize when connecting
@@ -97,21 +97,21 @@ public abstract class AbstractParentApp {
     
     // used for sending onward processing confirm to the backend
     static void sendDirectMsgAndAck(final String topic, final String payload, final BytesXMLMessage msgToAck, int delayMs, DeliveryMode mode) {
-//    	assert producer != null;
-//    	if (producer.isClosed()) return;  // must be quitting
     	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
     	if (payload != null) msg.setText(payload);
-    	msg.setDeliveryMode(mode);
+    	msg.setDeliveryMode(mode);  // usually Direct, but I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
 //    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
 
     	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
     	singleThreadPool.schedule(new Runnable() {
 			@Override
 			public void run() {
-//				if (producer.isClosed()) {
-//					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
-//					return;
-//				}
+		    	assert producer != null;
+				if (producer.isClosed()) {
+					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
+					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
+					return;
+				}
 				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
 			   	try {
 					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
@@ -165,11 +165,14 @@ public abstract class AbstractParentApp {
         try {
 			logger.info("Requesting state update...");
 			BytesXMLMessage response = requestor.request(reqMsg, 1000, JCSMPFactory.onlyInstance().createTopic("pq-demo/state/request"));
-			EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)response).getText());
-//			logger.info("Will be updating these values: " + updated);
+			String payload = ((TextMessage)response).getText();
+			logger.info("State update received: " + payload);
+			EnumSet<Command> updated = parseStateUpdateMessage(payload);
+			logger.info("Will be using these values: " + updated);
 			return updated;
         } catch (JCSMPException e) {
         	logger.warn("### StatefulControl app not running, no response on 'pq-demo/state/request'");
+        	logger.warn("### Will just use default values: " + buildStatePayload());
         	return EnumSet.noneOf(Command.class);
         }
     }
@@ -265,23 +268,23 @@ public abstract class AbstractParentApp {
     	}
     }
     
-    // only called by the pub/sub apps, not statefulcontrol
+    // only called by the pub/sub apps, not StatefulControl which doesn't use this and handles things itself
     static Command processControlMessage(String topic) {
 		logger.info("Control message detected: '" + topic + "'");
 		String[] levels = topic.split("/");
 		try {
 			Command command = Command.valueOf(levels[2].toUpperCase());
 			if (command == Command.QUIT) {
-				logger.warn("Graceful Shutdown message received");
+				logger.warn("Graceful Shutdown message received...");
 				isShutdown = true;
 				return Command.QUIT;
 			} else if (command == Command.KILL) {
-        		logger.warn("Kill message received");
+        		logger.warn("Kill message received!");
         		Runtime.getRuntime().halt(255);  // die immediately
         		return Command.KILL;  // unnecessary, but gives a Java compile warning without it
 			} else {
 				if (stateMap.containsKey(command)) {
-					Object value = parseControlMessageValue(levels, command);
+					Object value = parseControlMessageValue(command, levels.length > 3 ? levels[3] : null);
 					if (value == null) {
 						if (command.numParams == 0) {  // expected to be null
 							return command;
@@ -304,7 +307,7 @@ public abstract class AbstractParentApp {
 				}
 			}
 		} catch (IllegalArgumentException e) {  // bad control topic or syntax
-			logger.info("Exception thrown for control message: " + e.getMessage());
+			logger.warn("Exception thrown for control message '" + topic + "': " + e.getMessage());
 			return null;
 		}
     }
@@ -312,7 +315,7 @@ public abstract class AbstractParentApp {
     
     // can only be one "Command" update at a time
     /** returns the Integer, Double, String that is parsed from the control topic */
-	static Object parseControlMessageValue(String[] levels, Command command) {
+	static Object parseControlMessageValue(Command command, String param) {
 		try {
 			switch (command) {
 			case QUIT:
@@ -327,39 +330,39 @@ public abstract class AbstractParentApp {
         		logger.info("Current state configuration: '" + buildStatePayload() + "'");
 				return null;
 			case DISP:
-				if ("agg".equals(levels[3].toLowerCase())) {
+				if ("agg".equals(param.toLowerCase())) {
 					return "agg";
-				} else if ("each".equals(levels[3].toLowerCase())) {
+				} else if ("each".equals(param.toLowerCase())) {
 					return "each";
 				} else {
-					throw new IllegalCommandSyntaxException(command, levels[3]);
+					throw new IllegalCommandSyntaxException(command, param);
 				}
 			case PAUSE:
 				return null;
 			case PROB:
     			try {
-    				double newProb = Double.parseDouble(levels[3]);
+    				double newProb = Double.parseDouble(param);
     				if (newProb < 0 || newProb > 1) {
     					throw new NumberFormatException();
     				}
     				if (newProb > 0 && newProb < 0.001) newProb = 0.001;  // set it to something still visible as: 0.1%
     				return newProb;
     			} catch (NumberFormatException e) {
-					throw new IllegalCommandSyntaxException(Command.PROB, levels[3], e);
+					throw new IllegalCommandSyntaxException(Command.PROB, param, e);
     			}
 			case KEYS:
 				try {
-    				if ("max".equals(levels[3].toLowerCase())) {
+    				if ("max".equals(param.toLowerCase())) {
     					return Integer.MAX_VALUE;
     				} else {
-        				Integer newKeyspace = Integer.parseInt(levels[3]);
+        				Integer newKeyspace = Integer.parseInt(param);
         				if (newKeyspace < 1) {
         					throw new NumberFormatException();
         				}
         				return newKeyspace;
     				}
     			} catch (NumberFormatException e) {
-					throw new IllegalCommandSyntaxException(command, levels[3], e);
+					throw new IllegalCommandSyntaxException(command, param, e);
 				}
 			case DELAY:
 			case RATE:
@@ -367,21 +370,22 @@ public abstract class AbstractParentApp {
             case ACKD:
             case SIZE:
 				try {
-    				Integer value = Integer.parseInt(levels[3]);
+    				Integer value = Integer.parseInt(param);
     				if (value < command.min || value > command.max) {
-    					throw new IllegalCommandSyntaxException(command, levels[3]);
+    					throw new IllegalCommandSyntaxException(command, param);
     				}
     				return value;
     			} catch (NumberFormatException e) {
-					throw new IllegalCommandSyntaxException(command, levels[3], e);
+					throw new IllegalCommandSyntaxException(command, param, e);
 				}
 			default:
 				// ignore anything else, shouldn't be anything else!!?!?
-				logger.error("### UNHANDLED Control topic: " + String.join("/", levels));
-				throw new AssertionError(new IllegalControlTopicException(command, String.join("/", levels)));
+				throw new IllegalCommandSyntaxException(command, param);
+//				logger.error("### UNHANDLED Control topic: " + String.join("/", levels));
+//				throw new AssertionError(new IllegalControlTopicException(command, String.join("/", levels)));
 			}
-		} catch (ArrayIndexOutOfBoundsException | NullPointerException e) {
-			throw new IllegalControlTopicException(command, String.join("/", levels), e);
+		} catch (Exception e) {
+			throw new IllegalCommandSyntaxException(command, param, e);
 		}
 	}
 }

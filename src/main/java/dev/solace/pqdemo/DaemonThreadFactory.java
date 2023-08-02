@@ -19,12 +19,11 @@ package dev.solace.pqdemo;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public enum DaemonThreadFactory implements ThreadFactory {
-
-	INSTANCE;
+public class DaemonThreadFactory implements ThreadFactory {
 	
-	String name = "default";
+	private String name = "default";
 
 	public static class ExceptionHandler implements UncaughtExceptionHandler {
 		@Override
@@ -35,25 +34,19 @@ public enum DaemonThreadFactory implements ThreadFactory {
 		}
 	}
 	
-	public ThreadFactory withName(String name) {
-		this.name = name;
-		return this;
-	}
-	
-	
-//	private static AtomicInteger threadCount = new AtomicInteger(0);
+	private static AtomicInteger threadCount = new AtomicInteger(0);
 	
 	@Override
 	public Thread newThread(Runnable r) {
 		Thread t = Executors.defaultThreadFactory().newThread(r);
-//		t.setName("aaron_" + threadCount.incrementAndGet());
+		t.setName(name + "-" + threadCount.incrementAndGet());
 		t.setName(name);
 		t.setDaemon(true);
 		return t;
 	}
 	
-	private DaemonThreadFactory() {
-		
+	public DaemonThreadFactory(String name) {
+		this.name = name;
 	}
 	
 
