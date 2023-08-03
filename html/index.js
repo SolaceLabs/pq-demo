@@ -2244,9 +2244,9 @@ if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !pr
   writeToScreen(" ~ or ~");
   writeToScreen("<code>?queue=pq3&mqttUrl=wss://mr123abc.messaging.solace.cloud:8443&user=solace-cloud-client&pw=secret&vpn=pqdemo&sempUrl=https://mr123abc.messaging.solace.cloud:943&sempUser=aaron-demo-admin&sempPw=secret-semp-pw</code>");
 } else {  // we should have enough params to successfully connect..!
-  document.getElementById('ulist').style.visibility = 'hidden';
+  // document.getElementById('ulist').style.visibility = 'hidden';
   // document.getElementById('instructions').style.visibility = 'visible';
-  document.getElementById('instructions').hidden = false;
+  // document.getElementById('instructions').hidden = false;
   if (props.sempUrl) {
     headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
     trySempConnectivity(props);

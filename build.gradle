@@ -75,7 +75,7 @@ tasks.withType(JavaCompile).all {
 def scripts = [
     'PQPublisher':'dev.solace.pqdemo.PQPublisher',
     'PQSubscriber':'dev.solace.pqdemo.PQSubscriber',
-    'OrderChecker':'dev.solace.pqdemo.OrderChecker2',
+    'OrderChecker':'dev.solace.pqdemo.OrderChecker',
     'StatefulControl':'dev.solace.pqdemo.StatefulControl',
     'Test':'dev.solace.pqdemo.Test',
     'Command':'dev.solace.pqdemo.Command'
