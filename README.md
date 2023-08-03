@@ -119,16 +119,24 @@ This help screen should help you understand the basics of what the demo can do.
 
 ### Control messages, and per-client Control
 
+All applications are subscribed to the topic `pq-demo/control-all/>`, and will therefore receive any "[broadcast](https://en.wikipedia.org/wiki/Broadcasting_(networking))" Control message sent to all applications.
+
+Each application is also subscribed to a unique Control topic using their name, such as `pq-demo/control-sub-ABCD/>` or `pq-demo/control-pub-WXYZ/>`.  This allows you to send "[unicast](https://en.wikipedia.org/wiki/Unicast)" Control messages to just a single application.  
 
 
 ### QUIT - Graceful shutdown
 
-Sending this Control message will cause all apps (except for StatefulControl) to being a graceful shutdown.  
+Sending this Control message will cause all apps (except for StatefulControl) to begin a graceful shutdown.  This means that applications will have a chance to stop their publisher and consumer objects, acknowledge any outstanding messages, and quit nicely.
 
+*Note*: when using the `ACKD` ACK Delay option for subscribers, the graceful shutdown period will be longer as there is an intentional delay before acknowledging consumed messages.  (In the future, maybe I will make all buffered messages ACK immediately during shutdown).
 
-
+Pressing `Ctrl+C` on the terminal applications themselves will also initiate a graceful shutdown for that app.
 
 ### KILL - Instantly terminate
+
+Sending this Control message will cause all apps (except for Stateful Control) to immediatiately* terminate.  This means that applications will not stop gracefully, all connections to the Solace broker will immediately close, and any unacknowledged messages will be made available for redelivery.
+
+
 
 ### STATE - Echo current State
 
