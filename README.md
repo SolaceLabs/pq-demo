@@ -159,16 +159,20 @@ Each publisher has a certain number of keys that it is configured to publish on.
 ### PROB - Probability that the publisher will resend this particular PQ key at some point
 
 
+
+
 ### DELAY - Mean time in ms that the publisher will wait before resending
 
 
 
+
 ### SIZE - How big the message is
-#### PUB only
-Completely unused in the demo, this is simply to drive bandwidht rates and broker performance.  Default = 0.
+
+(*PUB* only) Completely unused in the demo, this is simply to drive bandwidht rates and broker performance.  Default = 0.
 
 
-### SLOW
+### SLOW - Add slow-subscriber delay to message callback
+
 
 
 ### ACKD
@@ -177,11 +181,21 @@ Completely unused in the demo, this is simply to drive bandwidht rates and broke
 
 ## Apps
 
-### StateFulControl
+This section details the various application components of the demo.
 
-This app is not actually necessary to run the demo.  However, it does provide a way for "late joiners" to receive the currently configured state when they connect to the Solace event broker.  
+### StatefulControl
+
+This app is not actually necessary to run the demo.  However, it does provide a way for "late joiners" to receive the currently configured state when they connect to the Solace event broker.  Whenever Control messages are sent, apps will receive and act on Commands that they are interested in.  The StatefulControl app maintains these settings and will provide the "current state" for any appications that joins after the Control messages have been sent.
+
+Note that the `QUIT` and `KILL` commands are not acted on by the StatefulControl app.  Only publisher, subscriber, and OrderChecker apps will respond to these.  This lets you terminate an existing setup, and restart the apps with the same state, as they will request the configuration when they start up.
+
+
 
 ### PQPublisher
+
+The publisher application has the most number of configurable options.  In addition to the various Commands listed above, the publisher apps can startup with a specified `AD_PUB_WINDOW` size.  This SMF parameter is not tunable during runtime and must be specified at startup, hence why this ia a program argument.  The default value for the application is 255 messages (vs. JCSMP default of 1 message).  255 messages allows a high volume/throughput of messages over a longer RTT (Round-Trip Time) link.  Changing to a lower value could/will impact throughput.
+
+The publisher application keeps a list of all keys that it has published on, and the associated sequence numbers with them.
 
 
 ### PQSubscriber
