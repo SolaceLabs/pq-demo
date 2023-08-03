@@ -81,7 +81,7 @@ public enum Command {
 				example);
 	}
 	
-	public static void main(String... args) {
+	public static void printHelp() {
 		System.out.println("Shows all Commands that the PQ Demo responds to (using topics)");
 		System.out.println();
 		for (Command cmd : Command.values()) {
@@ -93,6 +93,10 @@ public enum Command {
 		System.out.println("Also, can force state with JSON payload:");
 		System.out.println("  curl http://localhost:9000/pq-demo/state/force -d '{\"PROB\":0.5,\"DISP\":\"agg\",\"RATE\":100,\"KEYS\":256}'");
 		System.out.println();
+	}
+	
+	public static void main(String... args) {
+		printHelp();
 	}
 
 }

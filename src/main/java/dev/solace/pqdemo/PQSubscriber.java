@@ -281,7 +281,7 @@ public class PQSubscriber extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
+            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}

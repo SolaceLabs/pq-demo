@@ -45,6 +45,7 @@ public class StatefulControl extends AbstractParentApp {
 
 	static {
 		addMyCommands(EnumSet.of(Command.DISP));  // everybody
+		addMyCommands(EnumSet.of(Command.QUIT, Command.KILL));
 		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.PROB, Command.DELAY, Command.SIZE));  // publishers
 		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));  // subscribers
 	}
@@ -162,12 +163,12 @@ public class StatefulControl extends AbstractParentApp {
 							// send empty reply
 							sendReplyMsg("\n", message);  // add some newlines so the terminal prompt goes back to normal position 
 						}
-					} else if (topic.startsWith("pq-demo/control-")) {
+					} else if (topic.startsWith("pq-demo/control-all/")) {
 						logger.info("Control message detected: '" + topic + "'");
 						String[] levels = topic.split("/");
 						try {
 							Command command = Command.valueOf(levels[2].toUpperCase());
-							handleCommandUpdate(command, levels.length > 3 ? levels[3] : null);
+							handleCommandUpdate(command, levels.length > 3 ? levels[3] : null, false);
 						} catch (RuntimeException e) {
 							logger.warn("Exception thrown for control message: " + topic, e);
 						}
@@ -241,12 +242,12 @@ public class StatefulControl extends AbstractParentApp {
 		            	System.out.print(PROMPT);
 	            		continue;
 	            	}
-	            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
+					if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
 	            		System.out.println("Killing app...");
 	            		Runtime.getRuntime().halt(0);
-	            	} else if ("quit".equalsIgnoreCase(line)) {
-	    				sendDirectMsg("pq-demo/control-all/quit");
-	            		isShutdown = true;
+	            	} else if ("?".equals(line)) {
+	            		Command.printHelp();
+		            	System.out.print(PROMPT);
 	            		continue;
 	            	}
 	            	String[] levels = line.split(" ", 2);
@@ -261,9 +262,9 @@ public class StatefulControl extends AbstractParentApp {
 						}
 						else logger.info("Nothing to update");
 	            		System.out.print(PROMPT);
-	            	} else try {  // otherwise hopefully this is a 
+	            	} else try {  // otherwise hopefully this is a command that I know and care about
 	            		Command command = Command.valueOf(levels[0].toUpperCase());
-	            		handleCommandUpdate(command, levels.length > 1 ? levels[1] : null);
+	            		handleCommandUpdate(command, levels.length > 1 ? levels[1] : null, true);
 		            	System.out.print(PROMPT);
 					} catch (RuntimeException e) {
 						logger.warn("Ignoring! " + e.getMessage());
@@ -278,7 +279,7 @@ public class StatefulControl extends AbstractParentApp {
 		}
 	}
 
-	private static void handleCommandUpdate(Command command, String param) throws IllegalCommandSyntaxException {
+	private static void handleCommandUpdate(Command command, String param, boolean sendCtrlMsgForNull) throws IllegalCommandSyntaxException {
 		if (stateMap.containsKey(command)) {
 			Object value = parseControlMessageValue(command, param);
 			if (value != null) {
@@ -289,8 +290,9 @@ public class StatefulControl extends AbstractParentApp {
 					stateMap.put(command, value);
 					sendDirectMsg("pq-demo/state/update", buildStatePayload());
 				}
-			} else {  // null return value
-				// could only be STATE and PAUSE
+			} else if (sendCtrlMsgForNull) {  // null return value
+				// could be STATE and PAUSE and QUIT and KILL
+				logger.info("Sending control-all message for command " + command);
 				sendDirectMsg("pq-demo/control-all/" + command.name());
 			}
 		} else {

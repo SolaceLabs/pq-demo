@@ -41,9 +41,9 @@ import com.solacesystems.jcsmp.JCSMPTransportException;
 import com.solacesystems.jcsmp.TextMessage;
 import com.solacesystems.jcsmp.XMLMessageListener;
 
-public class OrderChecker2 extends AbstractParentApp {
+public class OrderChecker extends AbstractParentApp {
 
-    private static final String APP_NAME = OrderChecker2.class.getSimpleName();
+    private static final String APP_NAME = OrderChecker.class.getSimpleName();
     static {
         // the command I care about
 		stateMap.put(Command.DISP, Command.DISP.defaultVal);
@@ -219,7 +219,7 @@ public class OrderChecker2 extends AbstractParentApp {
             if (System.in.available() > 0) {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
-            	if ("\033".equals(line) || "kill".equalsIgnoreCase(line)) {  // octal 33 == dec 27, which is the Escape key
+            	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
             		System.out.println("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}
