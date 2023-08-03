@@ -119,7 +119,7 @@ This help screen should help you understand the basics of what the demo can do.
 
 ### Control messages, and per-client Control
 
-All applications are subscribed to the topic `pq-demo/control-all/>`, and will therefore receive any "broadcast" Control message sent to all applications.
+All applications are subscribed to the topic `pq-demo/control-all/>`, and will therefore receive any "[broadcast](https://en.wikipedia.org/wiki/Broadcasting_(networking))" Control message sent to all applications.
 
 Each application is also subscribed to a unique Control topic using their name, such as `pq-demo/control-sub-ABCD/>` or `pq-demo/control-pub-WXYZ/>`.  This allows you to send "[unicast](https://en.wikipedia.org/wiki/Unicast)" Control messages to just a single application.  
 
