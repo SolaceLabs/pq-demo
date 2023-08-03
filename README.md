@@ -101,3 +101,11 @@ Also, can force state with JSON payload:
 
 
 
+
+
+
+## What it looks like
+
+![Dashboard view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/dashboard.png)
+
+
