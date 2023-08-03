@@ -108,4 +108,6 @@ Also, can force state with JSON payload:
 
 ![Dashboard view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/dashboard.png)
 
+![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals.png)
+
 
