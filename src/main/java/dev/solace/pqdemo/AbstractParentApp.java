@@ -194,6 +194,9 @@ public abstract class AbstractParentApp {
     }
     
     private static String shortNameGenerator() {
+    	long pid = ProcessHandle.current().pid();
+    	return String.format("%04d", pid);
+/*    	
     	StringBuilder sb = new StringBuilder();
     	for (int i=0; i<4; i++) {
 //    		int c = (int)(Math.random() * 62);
@@ -203,12 +206,14 @@ public abstract class AbstractParentApp {
     		sb.append((char)(65 + (int)(Math.random() * 26)));  // [A-Z]
     	}
     	return sb.toString();
+*/
     }
     
     /** type == 'pub' or 'sub' or 'state' or ..?? */
     static void updateMyNameAfterConnect(String type) throws JCSMPException {
     	String shortName = shortNameGenerator();
-    	nick = shortName.substring(0, 2);
+//    	nick = shortName.substring(0, 2);
+    	nick = shortName.substring(shortName.length()-2);  // last two chars
     	myName = type + "-" + shortName;
         session.setProperty(JCSMPProperties.CLIENT_NAME, "pq-demo/" + type + "/" + myName);
 //        System.setProperty("log-file-name", "pq_" + type + "_" + myName);
