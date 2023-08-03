@@ -100,7 +100,7 @@ scripts.each() { scriptName, className ->
     application {
         applicationDistribution.into("bin") {
             from(t)
-            fileMode = 0755
+            //fileMode = 0755
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
     }
