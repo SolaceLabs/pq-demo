@@ -198,7 +198,7 @@ public class Sequencer {
 			    	red++;  // increment our counter
 			    }
 			    // this is my fancy log statement print-out
-				String inner = String.format("(%s) q:%s, key:%%%ds, exp:%%%dd, got:%%%dd, %%3s, prev:%%s  %%s%%s%s%%s%%s",
+				String inner = String.format("(%s) q:%s, key:%%%ds, got:%%%dd, exp:%%%dd, %%3s, prev:%%s  %%s%%s%s%%s%%s",
 						sub, queue, maxLengthKey, maxLengthSeqNo, maxLengthSeqNo, redStr);
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 1, got: 1, -- , prev:✔   OK
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 2, got: 3,  +2, prev:❌  JUMP missing 1: [2]
@@ -219,7 +219,7 @@ public class Sequencer {
 			    	if (seqStatus.numDupes > 0) dupes++;  // increment the counter
 			    	final String missingStr = perKeySeq.toStringMissingRanged();  // just to print the ranges of seq nums that we're missing
 			    	// OK, so stats for red & gaps (prevSeqNum) & dupes all taken care of... just newKs & oos to take care of...
-	                final String logEntry = String.format(inner, pqKey, seqStatus.expected, msgSeqNum, plusMinusJumpCount, prevStr, seqStatus.status, diffSubStr, dupeCountStr, missingStr);
+	                final String logEntry = String.format(inner, pqKey, msgSeqNum, seqStatus.expected, plusMinusJumpCount, prevStr, seqStatus.status, diffSubStr, dupeCountStr, missingStr);
 	                // I think we should log all redeliveries, always, for visibility
 	                // And any non-OK status should be logged, regardless of redelivery flag or not...
 			    	// if (redeliveredFlag) {  // ok, how to deal..?
