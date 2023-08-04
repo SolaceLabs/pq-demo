@@ -117,11 +117,12 @@ Also, can force state with JSON payload:
 
 This help screen should help you understand the basics of what the demo can do.
 
+
 ### Control messages, and per-client Control
 
 All applications are subscribed to the topic `pq-demo/control-all/>`, and will therefore receive any "[broadcast](https://en.wikipedia.org/wiki/Broadcasting_(networking))" Control message sent to all applications.
 
-Each application is also subscribed to a unique Control topic using their name, such as `pq-demo/control-sub-ABCD/>` or `pq-demo/control-pub-WXYZ/>`.  This allows you to send "[unicast](https://en.wikipedia.org/wiki/Unicast)" Control messages to just a single application.  
+Each application is also subscribed to a unique Control topic using their name, such as `pq-demo/control-sub-1234/>` or `pq-demo/control-pub-2345/>`.  This allows you to send "[unicast](https://en.wikipedia.org/wiki/Unicast)" Control messages to just a single application.  
 
 
 ### QUIT - Graceful shutdown
@@ -130,60 +131,77 @@ Sending this Control message will cause all apps (except for StatefulControl) to
 
 *Note*: when using the `ACKD` ACK Delay option for subscribers, the graceful shutdown period will be longer as there is an intentional delay before acknowledging consumed messages.  (In the future, maybe I will make all buffered messages ACK immediately during shutdown).
 
-Pressing `Ctrl+C` on the terminal applications themselves will also initiate a graceful shutdown for that app.
+Pressing `Ctrl+C` on the terminal applications themselves will also initiate a graceful shutdown for that app, as will issuing a SIGTERM to the process.
+
 
 ### KILL - Instantly terminate
 
-Sending this Control message will cause all apps (except for Stateful Control) to immediatiately* terminate.  This means that applications will not stop gracefully, all connections to the Solace broker will immediately close, and any unacknowledged messages will be made available for redelivery.
+Sending this Control message will cause all apps (except for Stateful Control) to immediatiately* terminate.  This means that applications will not stop gracefully, all connections to the Solace broker will immediately close, and any unacknowledged messages will be made available for redelivery.  *Note that if a subscriber is slow (see below) it might not get the Kill message right away.
+
+Pressing `Esc` and then `Enter` on the terminal applications themselves will instantly kill the app.
 
 
+### STATE - (All) Echo current State
 
-### STATE - Echo current State
-
-
-### DISP - Change between "each" and "aggregate"
-
-When running the terminal applications, sometimes you want to see *each* individual message echo'ed to the console, but as rates go up you would prefer these statistics *agg*regated.  
+Each running app will echo their current state (configuration) to the console.  This can be useful for verifying things, or for cutting-and-pasting back into another test run with the "force state" command.
 
 
-### PAUSE - Pause publishing
+### DISP - (All) Change between showing each message or aggregate stats
 
-This publisher-only command toggles publishers between sending and not-sending messages.  This can either be broadcast to all publishers using the `control-all` topic, or to individual publishers by specifying their specific name in the Control topic.
+String "each"|"agg".  Default = "each".  When running the terminal applications, sometimes you want to see *each* individual message echo'ed to the console, but as rates go up you would prefer these statistics *agg*regated.  Each message is always logged to the logging files, which essentially gives you an audit record of everything the Publishers, Subscribers, and OrderChecker have seen.
 
-### RATE - Change message pubish rate
+
+### PAUSE - (Pub only) Pause publishing
+
+This publisher-only command toggles publishers between sending and not-sending messages.  This can either be broadcast to all publishers using the `control-all` topic, or to individual publishers by specifying their specific name in the Control topic.  In the dashboard, each publisher has a "pause" button.
+
+### RATE - (Pub only) Change message pubish rate
 
 This Command changes how quickly publishing applications send events to the broker, to the queue. Great care was taken with timing each loop and using Java's `Thrad.sleep()` method that has nanosecond accuracy to help ensure a consistent publish rate is achieved.  This isn't always possible due to thread/process scheduling or priority, but the publisher apps are coded to try to maintain a consistent publishrate
 
 
-### KEYS - Change the number of keys published on
+### KEYS - (Pub only) Change the number of keys published on
 
-Integer, between 1..2,147,483,648.  Or "max"
+Integer between 1 and 2^31 (~2.1B); or "max".  Default = 8.
 
-Each publisher has a certain number of keys that it is configured to publish on.  In Solace, Partitioned Queues keys are Strings, so the publishers specify their keys as follows: `<2-chars>-<hex-seqNum>` where the first two chars are the first two letters of their chosen name, and the PQ key is expressed as a hexidecimal number.  So for example, if a publisher is called `pub-ABCD`, and its keyspace size is 16 (only one digit in hex), then one of its partition keys could look like `AB-e` or `AB-0` (for key #14 and #0 respectively).
+Each publisher has a certain number of keys that it is configured to publish on.  In Solace, Partitioned Queues keys are Strings, so the publishers specify their keys as follows: `<2-chars>-<hex-seqNum>` where the first two chars are the last two numbers of their PID, and the PQ key is expressed as a hexidecimal number.  So for example, if a publisher is called `pub-1234`, and its keyspace size is 16 (only one digit in hex), then one of its partition keys could look like `34-e` or `34-0` (for key #14 and #0 respectively).
 
-
-
-
-### PROB - Probability that the publisher will resend this particular PQ key at some point
+Adding something unique from the publisher to the key name is in case multiple publishers are sending.
 
 
+### PROB - (Pub only) Probability that the publisher will resend this particular PQ key at some point
+
+Decimal number between 0 and 1 inclusive, default = 0.  This number is the likelihood that a "follow-on" message (aka a message with the same PQ key but the next sequence number) will be published at some point in the future.  Note that if using a small-ish number of keys, it is quite likely that a resend will occur anyway; only when using a huge keyspace will this ensure the same key is picked again.
+
+Setting to 0 disables all sequenced checks in the Subscribers and the OrderChecker.
 
 
-### DELAY - Mean time in ms that the publisher will wait before resending
+### DELAY - (Pub only) Mean time in ms that the publisher will wait before resending
 
-
-
-
-### SIZE - How big the message is
-
-(*PUB* only) Completely unused in the demo, this is simply to drive bandwidht rates and broker performance.  Default = 0.
-
-
-### SLOW - Add slow-subscriber delay to message callback
+Related to `PROB` above, this is the approximate time the publisher will wait before sending the follow-on message with the same key.  
 
 
 
-### ACKD
+
+### SIZE - (Pub only) How big the message is
+
+Integer between 0 and 100,000.  Default = 0.  Completely unused in the demo, this is simply to drive bandwidth rates and broker performance.
+
+
+### SLOW - (Sub only) Add slow-subscriber millisecond delay to message callback
+
+Integer between 0 and 1,000.  Default = 0.  This will add an approximate slowdown/sleep/pause in milliseconds in the message callback thread of the Subscriber, simulating processing load.  The value is somewhat randomized, utilizing a scaled Poisson distribution.
+
+Note that the Subscriber does not perform any intelligent flow control, and that its ingress buffers ([dispatch notification queue](view-source:https://docs.solace.com/API/API-Developer-Guide/API-Threading.htm#api_threading_1096948177_601598)) can easily become backed-up with messages with an appropriate large delay, and Direct and Guaranteed messages use the same buffers.  For example, a slow subscriber delay of 100ms means that it will take ~25 seconds to clear its entire window's worth of messages (default AD SUB WIN = 255).  So if a control message is sent to a slow subscriber, it make take a few seconds to be processed if it is stuck behind a number of Guaranteed messages that must be "processed" by the app.
+
+!(Receiving messages in JCSMP)[https://docs.solace.com/API/API-Developer-Guide/Images/java_receive_threading_async.jpg]
+
+
+### ACKD - (Sub only) ACKnowledgement Delay
+
+Integer between 0 and 30,000. Default = 0.  This setting tells the Subscriber to "buffer" the message for some number of milliseconds before a) sending a message to the backend OrderChecker (for global order checking); and b) acknowledging the message back to the broker.  A larger value means that in case of Subscriber failure (or KILL), more messages will have to be redelivered to the next Subscriber that takes over.
+
+Note that when performing a graceful quit, the Subscriber will delay how long it takes to shutdown 
 
 
 
