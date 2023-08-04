@@ -42,7 +42,7 @@ function updateCtrlList() {
   var ctrlArray = [ 'control-all' ];
   for (let c of ctrlSet) {
     var levs = c.split("/");
-    ctrlArray.push('control-' + levs[2]);
+    ctrlArray.push('control-' + levs[1]);
   }
   d3.select('#ctrltopic').selectAll('option').data(ctrlArray).enter().append('option');
   d3.select('#ctrltopic').selectAll('option').data(ctrlArray).text(d => d);
@@ -98,7 +98,9 @@ function connectMqtt(url, user, pw) {
     console.log(getTs() + "MQTT connected");
     mqttConn = true;
     if (Date.now() - mqttConnTs > 5000) {  // been disconnected for at least 5 seconds!
-      console.log("TODO: SEMPV2 TO GET ALL PARTITION STATUS! And acquire new consumers");
+      // console.log("TODO: SEMPV2 TO GET ALL PARTITION STATUS! And acquire new consumers");
+      console.log("Have been disconnected from MQTT for > 5 seconds, using SEMPv2 to refresh partition client mappings")
+      getQueueDetails(props.sempUrl + sempV2PartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
     }
     mqttConnTs = Date.now();
     updateConnBox();
@@ -216,7 +218,7 @@ function onMessage(topic, message) {  // string, Buffer
         case "CLIENT_CLIENT_CONNECT":
         case "CLIENT_CLIENT_NAME_CHANGE": {
           var clientName = payloadWords[6];
-          if (clientName.indexOf("pq-demo/sub") == 0 || subMap.has(clientName)) {
+          if (clientName.indexOf("pq/sub") == 0 || subMap.has(clientName)) {
             if (!subMap.has(clientName)) {  // new guy
               var newSub = getBlankClient();
               newSub.name = clientName;
@@ -243,7 +245,7 @@ function onMessage(topic, message) {  // string, Buffer
               // updateSubsPos();
               updateSubStatus(client);
             }
-          } else if (clientName.indexOf("pq-demo/pub") == 0) {
+          } else if (clientName.indexOf("pq/pub") == 0) {
             if (!pubMap.has(clientName)) {
               var newPub = getBlankClient();
               newPub.name = clientName;
@@ -263,7 +265,7 @@ function onMessage(topic, message) {  // string, Buffer
             }
             d3.select('#uses-box').style('visibility', 'hidden');
             updatePubs();
-          } else if (clientName.indexOf('pq-demo/oc') == 0) {
+          } else if (clientName.indexOf('oc') == 0) {
             if (oc) {
               console.log("Already tracking an order checker called " + oc.name);
               return;
@@ -283,7 +285,7 @@ function onMessage(topic, message) {  // string, Buffer
         }
         case "CLIENT_CLIENT_OPEN_FLOW": {
           var clientName = payloadWords[6];
-          if (clientName.indexOf("pq-demo/pub") == 0) {  // only publisher open a flow
+          if (clientName.indexOf("pq/pub") == 0) {  // only publisher open a flow
             if (!pubMap.has(clientName)) {
               var newPub = getBlankClient();
               newPub.name = clientName;
@@ -328,7 +330,7 @@ function onMessage(topic, message) {  // string, Buffer
               subMap.get(clientName).bound = true;
               updateSubStatus(subMap.get(clientName));
             }
-          } else if (clientName.indexOf("pq-demo/sub") == 0) {  // wrong queue
+          } else if (clientName.indexOf("pq/sub") == 0) {  // wrong queue
             if (!subMap.has(clientName)) {
               console.log("Ignoring client " + clientName + " who has bound to wrong queue: " + queueName);
             } else {  // it's already there, need update
@@ -341,7 +343,7 @@ function onMessage(topic, message) {  // string, Buffer
         }
         case "CLIENT_CLIENT_UNBIND": {
           var clientName = payloadWords[6];
-          // if (clientName.indexOf("pq-demo/sub") == 0) {
+          // if (clientName.indexOf("pq/sub") == 0) {
             if (subMap.has(clientName)) {
               const c = subMap.get(clientName);
               setNotActiveFlow(c);
@@ -356,7 +358,7 @@ function onMessage(topic, message) {  // string, Buffer
         }
         case "CLIENT_CLIENT_CLOSE_FLOW": {  // ingress flow
           var clientName = payloadWords[6];
-          if (clientName.indexOf("pq-demo/pub") == 0) {  // only publisher open a flow
+          if (clientName.indexOf("pq/pub") == 0) {  // only publisher open a flow
             if (pubMap.has(clientName)) {
               pubMap.get(clientName).activeFlow = false;
               updatePubStatus(pubMap.get(clientName));
@@ -389,11 +391,11 @@ function onMessage(topic, message) {  // string, Buffer
                 updateSubsPos();  // it will be disappearing now
                 updateLines();
               }
-            }, 10000);  // 10 seconds, expire a disconnected client
+            }, 20000);  // 20 seconds, expire a disconnected client
             sub.timerHandle = disconnectTimer;
             updateSubStatus(sub);
             updateLines();
-          } else if (clientName.indexOf("pq-demo/pub") == 0) {
+          } else if (clientName.indexOf("pq/pub") == 0) {
             if (pubMap.has(clientName)) {
               pubMap.get(clientName).connected = false;
               pubMap.get(clientName).activeFlow = false;
@@ -412,7 +414,7 @@ function onMessage(topic, message) {  // string, Buffer
               updatePubStatus(pubMap.get(clientName));
               updatePubs();
             }
-          } else if (clientName.indexOf('pq-demo/oc') == 0) {
+          } else if (clientName.indexOf('pq/oc') == 0) {
             if (oc.name == clientName) {
               // d3.transition("octrans").interrupt();
               d3.select('#oc').selectAll('div').data([oc]).interrupt('octrans');  // stop any bgcolor change transition
@@ -425,7 +427,7 @@ function onMessage(topic, message) {  // string, Buffer
                   oc = null;
                   updateOc();
                 }
-              }, 2000);
+              }, 3000);
             }
           }
           break;
@@ -519,7 +521,7 @@ function onMessage(topic, message) {  // string, Buffer
       }  // end of switch, end of logging topics
     } else if (topic.indexOf("pq-demo/event/FLOW_") == 0) {
       var clientName = levels.slice(3).join("/");
-      if (clientName.indexOf("pq-demo/sub") == 0) {  // only subscribers have flow active events!
+      if (clientName.indexOf("pq/sub") == 0) {  // only subscribers have flow active events!
         if (!subMap.has(clientName)) {
           // console.log("******************************* NEW FLOW ACTIVE FOR CLIENT I HAVEN'T SEENT!!! " + clientName);
           // var newSub = getBlankClient();
@@ -541,11 +543,11 @@ function onMessage(topic, message) {  // string, Buffer
     //   STATS!!!  //////////////////////////////////////////////////////////////////////////////
     } else if (topic.indexOf("pq-demo/stats/") == 0) {
       var payload = JSON.parse(message.toString());
-      var clientName = levels.slice(3).join("/");
+      var clientName = levels.slice(2).join("/");
       d3.select('#uses-box').style('visibility', 'hidden');
       d3.select('#ctrl-box').style('visibility', 'visible');
       // console.log(clientName);
-      if (clientName.indexOf("pq-demo/sub") == 0) {
+      if (clientName.indexOf("pq/sub") == 0) {
         if (!ctrlSet.has(clientName)) {
           d3.select('#uses-box').style('visibility', 'hidden');  // at least one pub, so hide the text
           ctrlSet.add(clientName);
@@ -577,7 +579,7 @@ function onMessage(topic, message) {  // string, Buffer
         subMap.get(clientName).lastTs = Date.now();
         updateSubStatus(subMap.get(clientName));
         updateClientStats(subMap.get(clientName), 'sub');
-      } else if (clientName.indexOf("pq-demo/pub") == 0) {
+      } else if (clientName.indexOf("pq/pub") == 0) {
         if (!ctrlSet.has(clientName)) {
           ctrlSet.add(clientName);
           updateCtrlList();
@@ -601,7 +603,7 @@ function onMessage(topic, message) {  // string, Buffer
         updatePubStatus(pubMap.get(clientName));
         pubMap.get(clientName).lastTs = Date.now();
         updateClientStats(pubMap.get(clientName), 'pub');
-      } else if (clientName.indexOf('pq-demo/oc/') == 0) {
+      } else if (clientName.indexOf('pq/oc') == 0) {
         if (!oc) {
           oc = getBlankClient();
           oc.name = clientName;
@@ -644,9 +646,9 @@ setInterval(function goneClientsChecker() {
   // const timeOnScreen = now - visible;
   var updated = false;
   for (let client of subMap.values()) {
-    if (client.name.indexOf("pq-demo/sub/") == 0 && now - client.lastTs > 20000) {  // it's one of my demo subs && 20 seconds since we've heard from them
+    if (client.name.indexOf("pq/sub") == 0 && now - client.lastTs > 25000) {  // it's one of my demo subs && 25 seconds since we've heard from them
       // this allows for non-demo clients (like SdkPerf to use this, and not have the clients disappear
-      console.log(getTs() + 'Removing sub ' + client.name + ' as it has been 20 seeconds since last comms');
+      console.log(getTs() + 'Removing sub ' + client.name + ' as it has been 25 seeconds since last comms');
       subMap.delete(client.name);
       rebalanceSubIndexes(client.curIndex);
       updated = true;
@@ -659,8 +661,8 @@ setInterval(function goneClientsChecker() {
 
   updated = false;
   for (let client of pubMap.values()) {
-    if (now - client.lastTs > 20000) {  // 20 seconds since we've heard from them
-      console.log(getTs() + 'Removing pub ' + client.name + ' as it has been 20 seeconds since last comms');
+    if (now - client.lastTs > 15000) {  // 20 seconds since we've heard from them
+      console.log(getTs() + 'Removing pub ' + client.name + ' as it has been 15 seeconds since last comms');
       pubMap.delete(client.name);
       updated = true;
     }
@@ -669,8 +671,8 @@ setInterval(function goneClientsChecker() {
     updatePubs();  // it will be disappearing now
   }
 
-  if (oc && now - oc.lastTs > 10000) {
-    console.log(getTs() + 'Removing OC ' + oc.name + ' as it has been 10 seeconds since last comms');
+  if (oc && now - oc.lastTs > 5000) {
+    console.log(getTs() + 'Removing OC ' + oc.name + ' as it has been 5 seeconds since last comms');
     oc = null;
     updateOc();
   }
@@ -685,7 +687,7 @@ setInterval(function goneClientsChecker() {
   if (updated) {
     updateCtrlList();
   }
-}, 5000);
+}, 2345);  // every ~2.3 seconds do this check
 
 
 
@@ -837,7 +839,7 @@ function bounceClient(clientName) {
     .catch(error => console.error("didn't work " + error));
 }
 
-function toggleAcl(clientName, type, topic) {
+function toggleAcl(clientName, type, topic) {  // could be publish topic or connect IP addr
   if (!sempConn) return;
   console.log(getTs() + '### toggle ' + type + ' ACL triggered for ' + clientName);  // to help correlate with app logs
   headers.set('Content-Type', 'application/json');
@@ -1787,48 +1789,23 @@ function getQueueDetails(sempRequestPossiblyPaged) {
       console.log(json);
       // now, this response will either contain the info we want, or we might have to ask a 2nd timd following the paging cookie
       if (json.data && json.data.length > 0) {  // good! this response has data
-        // var millis = Date.now() - start;
-        // console.log("Time for two SEMPv2 queue details queries: " + millis + "ms");
         var pqName = json.data[0].queueName
-        // console.log(pqName);
         queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
-        // console.log(pqName.split("/").splice(0,2).join("/") + "/*");
-        // console.log(queueObj.partitionPattern);
-        // done, that's enough... time to start the SEMPv1 polling
+        for (let i=0; i<json.data.length; i++) {
+          if (json.data[i].partitionClientName) {
+            partitionMap.get("" + json.data[i].partitionNumber).client = json.data[i].partitionClientName;
+          }
+        }
+      }
+      if (json.meta && json.meta.paging && json.meta.paging.nextPageUri) {  // more to go, so call myself again
+        getQueueDetails(json.meta.paging.nextPageUri);
+      } else {  // else no more cookie, so we are done!
         activateSemp();
         drawQueue();  // shows the access type + num parts (and draws the partitions)
         updateLines();  // adds in the unconnected flow lines
-      } else if (json.meta.paging.nextPageUri) {
-        fetch(json.meta.paging.nextPageUri, {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-cache',
-          mode: "cors",
-          headers: headers
-        })
-          .then(response2 => response2.json())
-          .then(json2 => {
-            console.log(json2);
-            // var millis = Date.now() - start;
-            // console.log("Time for three SEMPv2 queue details queries: " + millis + "ms");
-            var pqName = json2.data[0].queueName;
-            queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
-            // done, that's enough... time to start the SEMPv1 polling
-            activateSemp();
-            drawQueue();  // shows the access type + num parts (and draws the partitions)
-            updateLines();  // adds in the unconnected flow lines
-          })
-          .catch(error4 => { console.error("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
-      } else {
-        console.error("Issue is SEMPv2 trying to get partition names..!")
       }
     })
-    .catch(error3 => { console.error("Could not fetch individual partitions details via SEMPv2"); console.error(error3); });
-
-
-
-
-
+    .catch(error4 => { console.error("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
 }
 
 let headers = new Headers();  // we'll need these multiple times
@@ -1844,7 +1821,6 @@ function trySempConnectivity(props) {
   <partition-scale-status>ready</partition-scale-status> */
 
   // const sempQueueInfoSuffix = '/SEMP/v2/config/msgVpns/{vpn}/queues/';// + queueObj.name;
-  const sempPartitionsSuffix = '/SEMP/v2/monitor/msgVpns/{vpn}/queues?where=partitionQueueName==';// + queueObj.name;
 
   headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
   var start = Date.now();
@@ -1876,11 +1852,12 @@ function trySempConnectivity(props) {
         for (let i = 0; i < queueObj.partitionCount; i++) {
           partitionMap.set("" + i, { index: "" + i, client: null });
         }
+
         queueObj.partitionRebalanceDelay = json.data.partitionRebalanceDelay;
         queueObj.partitionRebalanceMaxHandoffTime = json.data.partitionRebalanceMaxHandoffTime;
         // console.log(props.sempUrl + sempPartitionsSuffix + queueObj.name);
 
-        getQueueDetails(props.sempUrl + sempPartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
+        getQueueDetails(props.sempUrl + sempV2PartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
 
 
 /* 
@@ -1990,6 +1967,9 @@ const sempV1Requests = {
   detail: '<rpc><show><queue><name>{queuePattern}</name></queue></show></rpc>',
   rates: '<rpc><show><queue><name>{queuePattern}</name><rates/></queue></show></rpc>'
 }
+
+const sempV2PartitionsSuffix = '/SEMP/v2/monitor/msgVpns/{vpn}/queues?where=partitionQueueName==';// + queueObj.name;
+
 
 function sempV1Poll(postRequest, statsToFindArray) {
   // let sempv1 = 'https://pq.messaging.solace.cloud:943/SEMP';
