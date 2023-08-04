@@ -1,11 +1,19 @@
 # pq-demo
-A demo using JCSMP and MQTT web messaging to show the behaviour of Solace partitioned queues
+A demo using JCSMP and MQTT web messaging to show the behaviour of Solace partitioned queues.
 
 ## Overview
 
 This demo is meant to demonstrate a number of things:
 - Partitioned Queues behaviour, with regards to consumers and rebalancing
-- Prooving / verifying 
+- Proving / verifying sequencing remains intact in a variety of scenarios
+
+
+### Uses / Features
+
+- Guaranteed messaging for all keyed and sequenced data going through the specified queue
+- Direct messaging for all stats updates, control messages, and events
+- MQTT websockets for the JavaScript dashboard
+- 
 
 
 
@@ -14,22 +22,21 @@ This demo is meant to demonstrate a number of things:
 
 The demo consists of 5 main components:
 
-- PQPublisher: a Guaranteed messaging publishing application that 
+- **PQPublisher**: a Guaranteed messaging application that publishes messages containing keys and sequence numbers to a specified topic.  The runner of the demo (YOU) will ensure that the queue used in the demo has the appropriate topic subscription on it.  For example, if publishing on topic `a/b/c`, the queue should have a matching subscription such as `a/>`, `a/*/c`, or `*/b/>`.
 
 
-- PQSubscriber: 
+- **PQSubscriber**: a Guaranteed messaging application that will bind to the queue name specified on the command line (whether a partitioned queue, exclusive queue, or regular non-exclusive queue), and listen for demo messages specifically from the PQPublisher application.  It keeps track of all keys that it has seen, and all the sequence numbers for those keys and echos an issues to the console and log file.  Both the Subscribers and the OrderChecker (below) use a `Sequencer` class to maintain this infomation.
 
 
-- OrderChecker: a "backend" process that is meant to listen to all of the outputs of the PQSubscribers and
-verify the overall/global order of the data being put out.
+- **OrderChecker**: a "backend" process that is meant to listen to all of the outputs of the PQSubscribers and
+verify the overall/global order of the data being put out.  This is simulating a database or processing gateway, and is to ensure that even during client application failures or consumer scaling, that global/total order is still maintained.
+**The biggest/worst issue is if the `Sequencer` sees a gap, where a message on a particular key arrives but the previous sequence number on the same key has not yet.**
 
 
-- StatefulControl: a utility that 
+- **StatefulControl**: an optional utility that listens to all Control topics and maintains the current demo configuration state.  This allows "late joiners" or applications that connect later to find out the appropriate configuration.
 
 
-
-- The HTML / JS dashboard: this GUI display provides a real-time view of the queue of interest and any connected clients.
-It is
+- **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  It is
 
 
 ## Building
