@@ -51,6 +51,11 @@ import com.solacesystems.jcsmp.XMLMessageProducer;
 
 public abstract class AbstractParentApp {
 	
+//	static final String PID = ProcessHandle.current().pid();
+	static {
+		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));
+	}
+	
     static volatile boolean isShutdown = false;             // are we done?
     static volatile boolean isConnected = false;
     
@@ -65,6 +70,10 @@ public abstract class AbstractParentApp {
     static volatile Map<Command,Object> stateMap = new HashMap<>();  // volatile so different threads can see the updates right away
     static {
     	stateMap.put(Command.STATE, Command.STATE.defaultVal);  // everybody reports state
+    	stateMap.put(Command.DISP, Command.DISP.defaultVal);  // everybody changes display
+    	stateMap.put(Command.QUIT, Command.QUIT.defaultVal);  // everybody can quit
+    	stateMap.put(Command.KILL, Command.KILL.defaultVal);  // everybody can die
+    	stateMap.put(Command.PROB, Command.PROB.defaultVal);  // everybody listens to the probability value to know of sequence checking is enabled
     }
     static void addMyCommands(EnumSet<Command> commands) {
     	for (Command cmd : commands) {
@@ -186,6 +195,7 @@ public abstract class AbstractParentApp {
         if (args.length > 3) properties.setProperty(JCSMPProperties.PASSWORD, args[3]);  // client-password (sometimes optional)
         properties.setProperty(JCSMPProperties.REAPPLY_SUBSCRIPTIONS, true);  // subscribe Direct subs after reconnect
         properties.setProperty(JCSMPProperties.NO_LOCAL, true);
+        properties.setProperty(JCSMPProperties.GENERATE_SENDER_ID, true);
         JCSMPChannelProperties channelProps = new JCSMPChannelProperties();
         channelProps.setReconnectRetries(-1);      // try forever
         channelProps.setConnectRetriesPerHost(3);
@@ -215,7 +225,8 @@ public abstract class AbstractParentApp {
 //    	nick = shortName.substring(0, 2);
     	nick = shortName.substring(shortName.length()-2);  // last two chars
     	myName = type + "-" + shortName;
-        session.setProperty(JCSMPProperties.CLIENT_NAME, "pq-demo/" + type + "/" + myName);
+//        session.setProperty(JCSMPProperties.CLIENT_NAME, "pq-demo/" + type + "/" + myName);
+      session.setProperty(JCSMPProperties.CLIENT_NAME, "pq/" + myName);
 //        System.setProperty("log-file-name", "pq_" + type + "_" + myName);
     }
     

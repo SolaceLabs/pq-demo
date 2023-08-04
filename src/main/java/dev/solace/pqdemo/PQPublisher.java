@@ -61,8 +61,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static final String APP_NAME = PQPublisher.class.getSimpleName();
 	static {
 		// populate stateMap with what I care about
-		addMyCommands(EnumSet.of(Command.STATE, Command.DISP, Command.PAUSE));
-		addMyCommands(EnumSet.of(Command.KEYS, Command.RATE, Command.PROB, Command.DELAY, Command.SIZE));
+		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));
 	}
 
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
@@ -83,6 +82,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static final Logger logger = LogManager.getLogger();  // log4j2, but could also use SLF4J, JCL, etc.
 
 	private static volatile int msgSentCounter = 0;                   // num messages sent
+    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
 	private static volatile int msgNackCounter = 0;                   // num NACKs received
 //	private static volatile boolean stopThePressesNack = false;
 //	private static volatile MessageKeyToResend stopWaitFor = null;
@@ -176,6 +176,7 @@ public class PQPublisher extends AbstractParentApp {
 	
 	private static void publishPrintStats() {
 		try {
+			maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgSentCounter).length());
 			String logEntry = String.format("(%s) Msgs: %" + maxLengthRate + "d, resendQ: %d, NACKs: %d  [ks=%s, p=%.2f, d=%d]",
 					myName,
 					msgSentCounter,
@@ -196,7 +197,14 @@ public class PQPublisher extends AbstractParentApp {
 					.put("paused", isPaused)
 					.put("resendQ", timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size())
 					;
-			sendDirectMsg("pq-demo/stats/pub/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
+			sendDirectMsg("pq-demo/stats/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
+			if (msgSentCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
+				msgRateOver100Count++;
+				if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
+					logger.warn("Message rate too high, switching to aggregate display");
+					stateMap.put(Command.DISP, "agg");
+				}
+			} else msgRateOver100Count = 0;
 			msgSentCounter = 0;
 			msgNackCounter = 0;
 		} catch (Exception e) {
@@ -283,7 +291,6 @@ public class PQPublisher extends AbstractParentApp {
 		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));  // listen to quit control messages in Gateway mode
 		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-" + myName + "/>"));  // listen to quit control messages
 		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-" + myName + "/>"));  // listen to quit control messages in Gateway mode
-		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgSentCounter).length());
 		singleThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;  // shutting down
 			publishPrintStats();

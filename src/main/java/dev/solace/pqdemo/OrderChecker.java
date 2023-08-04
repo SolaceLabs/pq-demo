@@ -44,17 +44,11 @@ import com.solacesystems.jcsmp.XMLMessageListener;
 public class OrderChecker extends AbstractParentApp {
 
     private static final String APP_NAME = OrderChecker.class.getSimpleName();
-    static {
-        // the command I care about
-		stateMap.put(Command.DISP, Command.DISP.defaultVal);
-		stateMap.put(Command.PROB, Command.PROB.defaultVal);  // watching this to know if sequencing is disabled
-    }
     
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
     private static volatile int msgRecvCounter = 0;                 // num messages received per sec
-	// this is just for visualization, makes things align better...
-	static int maxLengthRate = 1;
+    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
     
     static Sequencer sequencer = new Sequencer(true);
     
@@ -85,17 +79,25 @@ public class OrderChecker extends AbstractParentApp {
 		for (Entry<String,Integer> entry : stats.entrySet()) {
 			jo.put(entry.getKey(), entry.getValue());
 		}
-    	sendDirectMsg("pq-demo/stats/oc/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
+    	sendDirectMsg("pq-demo/stats/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
 
-		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
+//		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
 		try {
-			String logEntry = String.format("(%s) Msgs: %,d, missing: %d, gaps: %d, oos: %d, red: %d, dupes: %d, newKs: %d",
+			String logEntry = String.format("(%s) Msgs: %d, missing: %d, gaps: %d, oos: %d, red: %d, dupes: %d, newKs: %d",
         			myName, msgRecvCounter, stats.get("missing"), stats.get("gaps"), stats.get("oos"), stats.get("red"), stats.get("dupes"), stats.get("newKs"));
-			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
+			if ("agg".equals(stateMap.get(Command.DISP))) logger.debug(logEntry);
 			else logger.trace(logEntry);
 		} catch (Exception e) {
 			logger.error("Had an issue when trying to print stats!", e);
 		}
+		if (msgRecvCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
+			msgRateOver100Count++;
+			if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
+				logger.warn("Message rate too high, switching to aggregate display");
+				stateMap.put(Command.DISP, "agg");
+				sequencer.showEach = false;
+			}
+		} else msgRateOver100Count = 0;
         msgRecvCounter = 0;
         sequencer.clearStats();
 	}

@@ -55,14 +55,13 @@ public class PQSubscriber extends AbstractParentApp {
 	private static final String APP_NAME = PQSubscriber.class.getSimpleName();
 	static {
 		// the command I care about
-		addMyCommands(EnumSet.of(Command.STATE, Command.DISP, Command.SLOW, Command.ACKD, Command.PROB));
+		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));
 	}
 
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
 	private static volatile int msgRecvCounter = 0;                 // num messages received per sec
-	// this is just for visualization, makes things align better...
-	static int maxLengthRate = 1;
+    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
 
 	private static FlowReceiver flowQueueReceiver = null;
 	static Sequencer sequencer = new Sequencer(false);
@@ -112,9 +111,9 @@ public class PQSubscriber extends AbstractParentApp {
 		jo.put("ackd", (Integer)stateMap.get(Command.ACKD));
 		jo.put("queueName", queueName);
 		jo.put("flow", currentFlowStatus);
-		sendDirectMsg("pq-demo/stats/sub/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
+		sendDirectMsg("pq-demo/stats/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
 		
-		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
+//		maxLengthRate = Math.max(maxLengthRate, Integer.toString(msgRecvCounter).length());
 		try {
 			String logEntry = String.format("(%s) Msgs: %d, gaps: %d, OoS: %d, reD: %d, dupes: %d, newKs: %d",
         			myName, msgRecvCounter, stats.get("gaps"), stats.get("oos"), stats.get("red"), stats.get("dupes"), stats.get("newKs"));
@@ -123,6 +122,14 @@ public class PQSubscriber extends AbstractParentApp {
 		} catch (Exception e) {
 			logger.error("Had an issue when trying to print stats!", e);
 		}
+		if (msgRecvCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
+			msgRateOver100Count++;
+			if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
+				logger.warn("Message rate too high, switching to aggregate display");
+				stateMap.put(Command.DISP, "agg");
+				sequencer.showEach = false;
+			}
+		} else msgRateOver100Count = 0;
 		msgRecvCounter = 0;
 		sequencer.clearStats();
 	}
@@ -244,14 +251,14 @@ public class PQSubscriber extends AbstractParentApp {
             	try {
 	                System.out.println("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
+	                publishPrintStats();
 	        		flowQueueReceiver.stop();  // stop the queue consumer
-//	        		Thread.sleep(1500);  // ACKs should flush before session ends, but this is me being paranoid
 	        		Thread.sleep(1500 + (Integer)stateMap.get(Command.ACKD));  // ACKs should flush before session ends, but this is me being paranoid
 	                publishPrintStats();
 	        		isConnected = false;  // shutting down
 	        		flowQueueReceiver.close();
 	        		Thread.sleep(1000);
-//	                publishPrintStats();  // last time
+	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
 	        		singleThreadPool.shutdown();  // stop printing stats
 	        		session.closeSession();  // will also close consumer and producer objects
@@ -344,34 +351,26 @@ public class PQSubscriber extends AbstractParentApp {
 						// definitely NEVER do this in C or C# or if "callback on reactor" in JCSMP
 						// this is actually pretty dumb, because Flow events also arrive on this thread, so things get jammed up behind this slow processing
 						Thread.sleep(slowPoissonDist.sample());
-
-						// Messages are removed from the broker queue when the ACK is received.
-						// Therefore, DO NOT ACK until all processing/storing of this message is complete.
-						// NOTE that messages can be acknowledged from a different thread.
-						// ideally, we should do "processing" in a different thread with a LinkedBlockingQueue, and using flow control (e.g. stop()) when the queue is a certain size to prevent getting overloaded
-//						String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
-//								queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
-						String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
-								queueNameSimple, myName, pqKey, msgSeqNum);
-						sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);  // ACK from a different thread
-						// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
-						// that would be the PROPER way, but this is just a silly demo
-						// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here
 					} catch (InterruptedException e) {
 						// probably terminating the app
 						// don't ack the message
-						logger.error(e);
+						logger.error("Had en exception in the queue's onReceive() handler", e);
 					}
-				} else {
-					// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here
+				}
+				// Messages are removed from the broker queue when the ACK is received.
+				// Therefore, DO NOT ACK until all processing/storing of this message is complete.
+				// NOTE that messages can be acknowledged from a different thread.
+				// ideally, we should do "processing" in a different thread with a LinkedBlockingQueue, and using flow control (e.g. stop()) when the queue is a certain size to prevent getting overloaded
 //					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
 //							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
-					String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
-							queueNameSimple, myName, pqKey, msgSeqNum);
-					sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);
-				}
+				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
+						queueNameSimple, myName, pqKey, msgSeqNum);
+				sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);  // ACK from a different thread
+				// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
+				// that would be the PROPER way, but this is just a silly demo
+				// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here
 			} catch (Exception e) {
-				logger.error(e);
+				logger.error("Had en exception in the queue's onReceive() handler", e);
 				// just so we don't blow up the FlowReceiver
 			}
 		}

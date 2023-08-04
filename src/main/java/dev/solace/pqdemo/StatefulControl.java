@@ -24,6 +24,7 @@ import java.util.EnumSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import com.solacesystems.jcsmp.BytesMessage;
 import com.solacesystems.jcsmp.BytesXMLMessage;
@@ -44,9 +45,7 @@ public class StatefulControl extends AbstractParentApp {
 	private static final String APP_NAME = StatefulControl.class.getSimpleName();
 
 	static {
-		addMyCommands(EnumSet.of(Command.DISP));  // everybody
-		addMyCommands(EnumSet.of(Command.QUIT, Command.KILL));
-		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.PROB, Command.DELAY, Command.SIZE));  // publishers
+		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));  // publishers
 		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));  // subscribers
 	}
 	private static final String PROMPT = ": ";
@@ -62,7 +61,7 @@ public class StatefulControl extends AbstractParentApp {
 				System.out.printf("  e.g. %s localhost default default%n%n", APP_NAME);
 				System.exit(-1);
 			}
-	
+
 			logger.debug(APP_NAME + " initializing...");
 			// Build the properties object for initializing the JCSMP Session
 			final JCSMPProperties properties = buildProperties(args);
@@ -176,12 +175,13 @@ public class StatefulControl extends AbstractParentApp {
 							sendReplyMsg("\n", message);  // add some newlines so the terminal prompt goes back to normal position 
 						}
 					} else if (topic.equals("pq-demo/state/request")) {  // someone is requesting the current state
-						logger.debug("Someone is requesting current state: " + buildStatePayload());
+						logger.debug(message.getSenderId() + " is requesting current state: " + buildStatePayload());
 						if (message.getReplyTo() != null) {  // req/rep message
 							sendReplyMsg(buildStatePayload(), message);
 						} else {  // broadcast to all... when would this happen?????  How could a request come in with no reply-to?
 							// maybe just published by whoever is running the demo, and wants to reset all apps back to known state?
 							//						System.err.println("I AM HERE AND I DONT KNOW HOW THIS IS TRIGGERED, got a request state message with no reply, broadcasting to all...");
+							logger.info("Received state request with no replyTo, broadcasting to all: " + buildStatePayload());
 							sendDirectMsg("pq-demo/state/update", buildStatePayload());
 						}
 					} else {
@@ -242,6 +242,7 @@ public class StatefulControl extends AbstractParentApp {
 		            	System.out.print(PROMPT);
 	            		continue;
 	            	}
+//	            	Configurator.setLevel("com.solacesystems", "debug");
 					if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
 	            		System.out.println("Killing app...");
 	            		Runtime.getRuntime().halt(0);
@@ -275,11 +276,12 @@ public class StatefulControl extends AbstractParentApp {
 			System.out.println("Main thread exiting.");
 		} finally {
 			System.out.println("Final state: (use topic 'pq-demo/state/force' with this payload to reset):");
-			System.out.println("  " + buildStatePayload());
+			System.out.println(" " + buildStatePayload());
 		}
 	}
 
-	private static void handleCommandUpdate(Command command, String param, boolean sendCtrlMsgForNull) throws IllegalCommandSyntaxException {
+	/** sendCtrlMsgToAll for when using the console app and need to broadcast, otherwise this method called via receiving a control message, so don't send another one */
+	private static void handleCommandUpdate(Command command, String param, boolean sendCtrlMsgToAll) throws IllegalCommandSyntaxException {
 		if (stateMap.containsKey(command)) {
 			Object value = parseControlMessageValue(command, param);
 			if (value != null) {
@@ -288,9 +290,12 @@ public class StatefulControl extends AbstractParentApp {
 				} else {
 					logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
 					stateMap.put(command, value);
-					sendDirectMsg("pq-demo/state/update", buildStatePayload());
+					if (sendCtrlMsgToAll) {
+						logger.info("Sending state update message: " + buildStatePayload());
+						sendDirectMsg("pq-demo/state/update", buildStatePayload());
+					}
 				}
-			} else if (sendCtrlMsgForNull) {  // null return value
+			} else if (sendCtrlMsgToAll) {  // null return value
 				// could be STATE and PAUSE and QUIT and KILL
 				logger.info("Sending control-all message for command " + command);
 				sendDirectMsg("pq-demo/control-all/" + command.name());
