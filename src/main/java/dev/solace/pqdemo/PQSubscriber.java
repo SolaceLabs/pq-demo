@@ -32,7 +32,6 @@ import org.json.JSONObject;
 
 import com.solacesystems.jcsmp.BytesXMLMessage;
 import com.solacesystems.jcsmp.ConsumerFlowProperties;
-import com.solacesystems.jcsmp.DeliveryMode;
 import com.solacesystems.jcsmp.FlowEvent;
 import com.solacesystems.jcsmp.FlowEventArgs;
 import com.solacesystems.jcsmp.FlowEventHandler;
@@ -61,7 +60,6 @@ public class PQSubscriber extends AbstractParentApp {
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
 	private static volatile int msgRecvCounter = 0;                 // num messages received per sec
-    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
 
 	private static FlowReceiver flowQueueReceiver = null;
 	static Sequencer sequencer = new Sequencer(false);
@@ -122,14 +120,6 @@ public class PQSubscriber extends AbstractParentApp {
 		} catch (Exception e) {
 			logger.error("Had an issue when trying to print stats!", e);
 		}
-		if (msgRecvCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
-			msgRateOver100Count++;
-			if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
-				logger.warn("Message rate too high, switching to aggregate display");
-				stateMap.put(Command.DISP, "agg");
-				sequencer.showEach = false;
-			}
-		} else msgRateOver100Count = 0;
 		msgRecvCounter = 0;
 		sequencer.clearStats();
 	}
@@ -153,7 +143,7 @@ public class PQSubscriber extends AbstractParentApp {
         ((JCSMPChannelProperties)properties.getProperty(JCSMPProperties.CLIENT_CHANNEL_PROPERTIES)).setReconnectRetries(5);  // don't try forever
 		session = JCSMPFactory.onlyInstance().createSession(properties, null, new SimpleSessionEventHandler());
 		session.connect();
-		updateMyNameAfterConnect("sub");
+		updateMyNameAfterConnect("sub-" + queueNameSimple);
 		isConnected = true;
 
 		producer = session.getMessageProducer( new JCSMPStreamingPublishCorrelatingEventHandler() {
@@ -190,6 +180,8 @@ public class PQSubscriber extends AbstractParentApp {
 					if (updatedState != null) {
 						updateVars(EnumSet.of(updatedState));
 					}
+				} else if (topic.startsWith("#SYS/LOG")) {
+					BrokerLogFileOnly.log(message);
 				} else {
 					logger.warn("Received unhandled message on topic: " + message.getDestination().getName());
 				}
@@ -206,7 +198,7 @@ public class PQSubscriber extends AbstractParentApp {
 				}
 			}
 		});
-		consumer.start();  // turn on the subs, and start receiving data
+		consumer.start();
 		
 		// send request for state first before adding subscriptions...
 		updateVars(sendStateRequest());
@@ -257,6 +249,7 @@ public class PQSubscriber extends AbstractParentApp {
 	                publishPrintStats();
 	        		isConnected = false;  // shutting down
 	        		flowQueueReceiver.close();
+	        		removeSubscriptions();
 	        		Thread.sleep(1000);
 	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
@@ -275,11 +268,12 @@ public class PQSubscriber extends AbstractParentApp {
         logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
 
 		// Ready to start the application
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/update"));  // listen to state update messages from StatefulControl
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-all/>"));
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-" + myName + "/>"));  // listen to quit control messages
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-" + myName + "/>"));  // listen to quit control messages in Gateway mode
+//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
+//        addCustomSubscription("pq-demo/control-all/>");
+//        addCustomSubscription("POST/pq-demo/control-all/>");
+//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
+//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
+        injectSubscriptions();
 		// tell the broker to start sending messages on this queue receiver
 		flowQueueReceiver.start();  // async queue receive working now, so time to wait until done...
 
@@ -332,11 +326,14 @@ public class PQSubscriber extends AbstractParentApp {
 				// now track the sequence of this msg...
 				boolean knownDupe = sequencer.dealWith(queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered());
 				if (knownDupe) {
+					// this can happen when re-running multiple times without restarting the subscriber, so let's ignore
+					// otherwise, there's a good chance that this message is already in our "send proc" queue so could probably discard here
+					
 					// we've seeen this before, so probably have sent to backend/downstream OrderChecker already
 					// should really properly check that, it could have got NACKed maybe...
-					if (!msg.getRedelivered()) logger.error("### UH, I got a message that I already know about, but it's not flagged as redelivered!?!?");
-					// OK technically, we should REALLY double-check that my previous proc message successfully ACKed by the broker before ACKing this one...
-					
+//					if (!msg.getRedelivered()) logger.error("### UH, I got a message that I already know about, but it's not flagged as redelivered!?!?");
+					// OK technically, we should REALLY double-check that my previous
+
 					// LATEST, nope: I'm commenting this out... pass the dupes onto the backend OrderChecker
 					// but honestly, really, could handle this smarter... de-dupe here in the subscriber, only resend if we know we haven't got an ACK previously
 //					msg.ackMessage();  // ideally, Sequencer should keep track of whether each seq num has been ACKed after publishing the "processed" message to the downstream/backend system
@@ -365,7 +362,7 @@ public class PQSubscriber extends AbstractParentApp {
 //							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
 				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
 						queueNameSimple, myName, pqKey, msgSeqNum);
-				sendDirectMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD), DeliveryMode.PERSISTENT);  // ACK from a different thread
+				sendGuaranteedProctMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
 				// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
 				// that would be the PROPER way, but this is just a silly demo
 				// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here

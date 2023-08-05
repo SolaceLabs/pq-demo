@@ -19,6 +19,7 @@ package dev.solace.pqdemo;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -66,6 +67,7 @@ public abstract class AbstractParentApp {
     static String nick = "";  // nick 2 (or 3?) letters of myName
     static XMLMessageProducer producer = null;
     static XMLMessageConsumer consumer = null;
+    static Set<String> subscriptions = new LinkedHashSet<>();
     
     static volatile Map<Command,Object> stateMap = new HashMap<>();  // volatile so different threads can see the updates right away
     static {
@@ -105,7 +107,46 @@ public abstract class AbstractParentApp {
     }
     
     // used for sending onward processing confirm to the backend
-    static void sendDirectMsgAndAck(final String topic, final String payload, final BytesXMLMessage msgToAck, int delayMs, DeliveryMode mode) {
+    static void sendGuaranteedProctMsgAndAck(final String topic, final String payload, final BytesXMLMessage msgToAck, int delayMs) {
+    	assert msgToAck != null;
+    	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
+    	if (payload != null) msg.setText(payload);
+    	msg.setDeliveryMode(DeliveryMode.PERSISTENT);  // I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
+//    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
+
+    	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
+    	singleThreadPool.schedule(new Runnable() {
+			@Override
+			public void run() {
+		    	assert producer != null;
+				if (producer.isClosed()) {
+					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
+					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
+					return;
+				}
+				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
+			   	try {
+			   		// send proc message first
+					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
+					// then ack back to queue
+					logger.trace("PROC message sent, now ACKing: " + topic);
+					msgToAck.ackMessage();  // should REALLY (in a proper setup) send a Guaranteed message & WAIT for the ACK confirmation before ACKing this message
+					// but this is just a demo... probably good enough here
+				} catch (JCSMPException e) {
+					logger.error("### Could not send message to topic: " + topic + " due to: " + e.toString());
+					if (e instanceof JCSMPTransportException) {  // all reconnect attempts failed
+						isShutdown = true;  // let's quit; or, could initiate a new connection attempt
+					} else if (e instanceof JCSMPErrorResponseException) {  // might have some extra info
+						JCSMPErrorResponseException e2 = (JCSMPErrorResponseException)e;
+						logger.warn("Specifics: " + JCSMPErrorResponseSubcodeEx.getSubcodeAsString(e2.getSubcodeEx()) + ": " + e2.getResponsePhrase());
+					}
+				}
+			}
+    	}, delayMs, TimeUnit.MILLISECONDS);
+    }
+
+    // used for sending onward processing confirm to the backend
+/*    static void sendDirect(final String topic, final String payload, int delayMs, DeliveryMode mode) {
     	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
     	if (payload != null) msg.setText(payload);
     	msg.setDeliveryMode(mode);  // usually Direct, but I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
@@ -138,9 +179,37 @@ public abstract class AbstractParentApp {
 			}
     	}, delayMs, TimeUnit.MILLISECONDS);
     }
-
+*/
+    
+    
     static void sendDirectMsg(final String topic, final String payload) {
-    	sendDirectMsgAndAck(topic, payload, null, 0, DeliveryMode.DIRECT);
+//    	sendDirectMsgAndAck(topic, payload, null, 0, DeliveryMode.DIRECT);
+    	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
+    	if (payload != null) msg.setText(payload);
+
+    	singleThreadPool.submit(new Runnable() {  // schedule right away
+			@Override
+			public void run() {
+		    	assert producer != null;
+				if (producer.isClosed()) {
+					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
+					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
+					return;
+				}
+				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
+			   	try {
+					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
+				} catch (JCSMPException e) {
+					logger.error("### Could not send message to topic: " + topic + " due to: " + e.toString());
+					if (e instanceof JCSMPTransportException) {  // all reconnect attempts failed
+						isShutdown = true;  // let's quit; or, could initiate a new connection attempt
+					} else if (e instanceof JCSMPErrorResponseException) {  // might have some extra info
+						JCSMPErrorResponseException e2 = (JCSMPErrorResponseException)e;
+						logger.warn("Specifics: " + JCSMPErrorResponseSubcodeEx.getSubcodeAsString(e2.getSubcodeEx()) + ": " + e2.getResponsePhrase());
+					}
+				}
+			}
+    	});
     }
 
     static void sendDirectMsg(String topic) {
@@ -226,10 +295,38 @@ public abstract class AbstractParentApp {
     	nick = shortName.substring(shortName.length()-2);  // last two chars
     	myName = type + "-" + shortName;
 //        session.setProperty(JCSMPProperties.CLIENT_NAME, "pq-demo/" + type + "/" + myName);
-      session.setProperty(JCSMPProperties.CLIENT_NAME, "pq/" + myName);
+        session.setProperty(JCSMPProperties.CLIENT_NAME, "pq/" + myName);
 //        System.setProperty("log-file-name", "pq_" + type + "_" + myName);
+        subscriptions.add("pq-demo/state/update");
+        subscriptions.add("pq-demo/control-all/>");
+        subscriptions.add("POST/pq-demo/control-all/>");
+        subscriptions.add("pq-demo/control-" + myName + "/>");
+        subscriptions.add("POST/pq-demo/control-" + myName + "/>");
+        subscriptions.add("#SYS/LOG/>");
+    }
+
+    /** do this after connecting and you're ready to go */
+    static void injectSubscriptions() throws JCSMPException {
+    	for (String sub : subscriptions) {
+    		session.addSubscription(JCSMPFactory.onlyInstance().createTopic(sub));
+    	}
     }
     
+    static void addCustomSubscription(String sub) {
+//		session.addSubscription(JCSMPFactory.onlyInstance().createTopic(sub));
+		subscriptions.add(sub);
+    }
+
+    static void removeSubscriptions() {
+    	for (String sub : subscriptions) {
+    		try {
+    			session.removeSubscription(JCSMPFactory.onlyInstance().createTopic(sub));
+    		} catch (JCSMPException e) {
+    			// ignore, exiting!
+    		}
+    	}
+    }
+
     
     /** returns the list of commands that were updated, won't return null but an empty Set */
     static EnumSet<Command> parseStateUpdateMessage(String jsonPayload) {
@@ -341,7 +438,7 @@ public abstract class AbstractParentApp {
 				// don't quit the stateful app anymore either, only pub/sub above in "processMessage()"
         		return null;
 			case STATE:
-        		logger.info("Current state configuration: " + buildStatePayload());
+        		logger.info("Current state configuration:\n " + buildStatePayload());
 				return null;
 			case DISP:
 				if ("agg".equalsIgnoreCase(param)) {

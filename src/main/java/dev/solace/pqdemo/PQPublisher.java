@@ -82,7 +82,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static final Logger logger = LogManager.getLogger();  // log4j2, but could also use SLF4J, JCL, etc.
 
 	private static volatile int msgSentCounter = 0;                   // num messages sent
-    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
+    private static volatile int msgRateOver200Count = 0;   // switch to disp=agg if rates too high for too long
 	private static volatile int msgNackCounter = 0;                   // num NACKs received
 //	private static volatile boolean stopThePressesNack = false;
 //	private static volatile MessageKeyToResend stopWaitFor = null;
@@ -112,7 +112,13 @@ public class PQPublisher extends AbstractParentApp {
 //		//		return UUID.randomUUID().toString();
 //	}
 
+	
+	private static int[] forcedKeySet = null;  // this is updated with a System variable
+	
 	private static int buildPartitionKey() {
+		if (forcedKeySet != null) {
+			return forcedKeySet[r.nextInt(forcedKeySet.length)];
+		}
 		return r.nextInt((Integer)stateMap.get(Command.KEYS));
 //		return nick + "-" + Integer.toString(num, 16);
 		//		return Integer.toString((int)(Math.random() * keySpaceSize));
@@ -120,6 +126,9 @@ public class PQPublisher extends AbstractParentApp {
 	}
 
 	private static String buildPqKeyString(int pqKey) {
+		if (forcedKeySet != null) {
+			return Integer.toString(pqKey);  // not hex, not just a regular integer
+		}
 		return nick + "-" + Integer.toHexString(pqKey);
 	}
 
@@ -147,6 +156,10 @@ public class PQPublisher extends AbstractParentApp {
 	/** call this after stateMap has changed, called from API callback thread though
 	 * @param updated */
 	static void updateVars(EnumSet<Command> updated) {
+		if (updated.contains(Command.KEYS) && forcedKeySet != null) {
+			logger.warn("Ignoring KEYS Command, using forced set of keys from command line");
+			stateMap.put(Command.KEYS, forcedKeySet.length);
+		}
 		if (updated.contains(Command.PAUSE)) {
 			logger.info((isPaused ? "Unpausing" : "Pausing") + " publishing...");
 			isPaused = !isPaused;  // pause/unpause
@@ -182,14 +195,16 @@ public class PQPublisher extends AbstractParentApp {
 					msgSentCounter,
 					timeSortedQueueOfResendMsgs.size() + nackedMsgsToRequeue.size(),
 					msgNackCounter,
-					(Integer)stateMap.get(Command.KEYS) == Integer.MAX_VALUE ? "max" : Integer.toString((Integer)stateMap.get(Command.KEYS)),
+					forcedKeySet == null ?
+							(Integer)stateMap.get(Command.KEYS) == Integer.MAX_VALUE ? "max" : Integer.toString((Integer)stateMap.get(Command.KEYS)) :
+							Integer.toString(forcedKeySet.length),
 					(Double)stateMap.get(Command.PROB),
 					(Integer)stateMap.get(Command.DELAY));
 			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
 			else logger.trace(logEntry);
 			JSONObject jo = new JSONObject()
 					.put("rate", msgSentCounter)
-					.put("keys", stateMap.get(Command.KEYS))
+					.put("keys", forcedKeySet == null ? stateMap.get(Command.KEYS) : forcedKeySet.length)
 					.put("prob", stateMap.get(Command.PROB))
 					.put("delay", stateMap.get(Command.DELAY))
 					.put("activeFlow", !producer.isClosed())
@@ -199,12 +214,13 @@ public class PQPublisher extends AbstractParentApp {
 					;
 			sendDirectMsg("pq-demo/stats/" + ((String)session.getProperty(JCSMPProperties.CLIENT_NAME)), jo.toString());
 			if (msgSentCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
-				msgRateOver100Count++;
-				if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
+				msgRateOver200Count++;
+				if (msgRateOver200Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
 					logger.warn("Message rate too high, switching to aggregate display");
-					stateMap.put(Command.DISP, "agg");
+					sendDirectMsg("pq-demo/control-all/disp/agg");
+//					stateMap.put(Command.DISP, "agg");
 				}
-			} else msgRateOver100Count = 0;
+			} else msgRateOver200Count = 0;
 			msgSentCounter = 0;
 			msgNackCounter = 0;
 		} catch (Exception e) {
@@ -216,6 +232,7 @@ public class PQPublisher extends AbstractParentApp {
 	public static void main(String... args) throws JCSMPException, IOException, InterruptedException {
 		if (args.length < 5) {  // Check command line arguments
 			System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> <password> <topic> [pub-ad-win-size]%n%n", APP_NAME);
+			System.out.println("Set env var 'export PQ_PUBLISHER_OPTS=-Dforce-key-set=a,b,c,d' to make the publisher use a defined set of keys.");
 			System.exit(-1);
 		}
 		logger.debug(APP_NAME + " initializing...");
@@ -264,6 +281,8 @@ public class PQPublisher extends AbstractParentApp {
 					if (updatedState != null) {
 						updateVars(EnumSet.of(updatedState));
 					}
+				} else if (topic.startsWith("#SYS/LOG")) {
+					BrokerLogFileOnly.log(message);
 				} else {
             		logger.warn("Received unhandled message on topic: " + message.getDestination().getName());
 				}
@@ -280,17 +299,38 @@ public class PQPublisher extends AbstractParentApp {
 				}
 			}
 		});
-		consumer.start();  // turn on the subs, and start receiving data
+		consumer.start();
+
+		// let's see if we're trying to override the keys
+		if (System.getProperty("force-key-set") != null) {
+			logger.warn("We have a custom set of keys to use! Hopefully they're all integers..!");
+			String keys[] = System.getProperty("force-key-set").split(",");
+			logger.warn(Arrays.toString(keys));
+			forcedKeySet = new int[keys.length];
+			try {
+				if (keys.length == 0) throw new NumberFormatException();  // need at least one key!
+				for (int i=0; i<keys.length; i++) {
+					forcedKeySet[i] = Integer.parseInt(keys[i]);
+				}
+				stateMap.put(Command.KEYS, forcedKeySet.length);
+				logger.warn("Success!  Using " + forcedKeySet.length + " specified keys");
+			} catch (NumberFormatException e) {
+				logger.error("Could not parse forced key set, ensure that everything is a regular base10 integer");
+				forcedKeySet = null;  // put back to normal
+			}
+		}
 
 		// send request for state first before adding subscriptions...
 		updateVars(sendStateRequest());
 
 		// Ready to start the application, just subscriptions
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/update"));  // listen to state update messages from StatefulControl
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-all/>"));  // listen to quit control messages
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));  // listen to quit control messages in Gateway mode
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-" + myName + "/>"));  // listen to quit control messages
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-" + myName + "/>"));  // listen to quit control messages in Gateway mode
+		injectSubscriptions();
+//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
+//        addCustomSubscription("pq-demo/control-all/>");
+//        addCustomSubscription("POST/pq-demo/control-all/>");
+//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
+//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
+        
 		singleThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;  // shutting down
 			publishPrintStats();
@@ -302,6 +342,7 @@ public class PQPublisher extends AbstractParentApp {
             	try {
 	                System.out.println("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
+	                removeSubscriptions();
 	        		consumer.stop();  // stop the consumers
 	        		Thread.sleep(1500);
 	        		isConnected = false;  // shutting down
@@ -419,8 +460,10 @@ public class PQPublisher extends AbstractParentApp {
 				maxLengthKey = Math.max(maxLengthKey, pqKeyString.length());  // this is just for pretty-printing on console
 				maxLengthSeqNo = Math.max(maxLengthSeqNo, Integer.toString(seqNo).length());  // this is just for pretty-printing on console
 	
-				// if the message I'm sending was a NACK (i.e. I'm trying to republish it) don't do the probability sequence thing...
-				if ((m == null || !m.wasNack) && r.nextFloat() < (Double)stateMap.get(Command.PROB) && pqKey < (Integer)stateMap.get(Command.KEYS)) {  // means there will be another message following!\
+				if ((m == null || !m.wasNack)  // if the message I'm sending was a NACK (i.e. I'm trying to republish it) don't do the probability sequence thing...
+						&& r.nextFloat() < (Double)stateMap.get(Command.PROB)  // so not a NACK, and our random number is good for probability
+						&& (forcedKeySet != null || pqKey < (Integer)stateMap.get(Command.KEYS))) {  // and this key is still in range, or we're using a forced keyset
+					// means there will be another message following!
 					// need to "re-queue" this sequenced message later for sending again, the next sequence...
 					// don't requeue if the keyspace is smaller now, and this key is too big...
 					long msecDelay = 0;  // when?  no delay, send immediately next

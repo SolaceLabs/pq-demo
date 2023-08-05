@@ -48,7 +48,6 @@ public class OrderChecker extends AbstractParentApp {
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
     private static volatile int msgRecvCounter = 0;                 // num messages received per sec
-    private static volatile int msgRateOver100Count = 0;   // switch to disp=agg if rates too high for too long
     
     static Sequencer sequencer = new Sequencer(true);
     
@@ -90,14 +89,6 @@ public class OrderChecker extends AbstractParentApp {
 		} catch (Exception e) {
 			logger.error("Had an issue when trying to print stats!", e);
 		}
-		if (msgRecvCounter > 100 && "each".equals(stateMap.get(Command.DISP))) {
-			msgRateOver100Count++;
-			if (msgRateOver100Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
-				logger.warn("Message rate too high, switching to aggregate display");
-				stateMap.put(Command.DISP, "agg");
-				sequencer.showEach = false;
-			}
-		} else msgRateOver100Count = 0;
         msgRecvCounter = 0;
         sequencer.clearStats();
 	}
@@ -158,6 +149,8 @@ public class OrderChecker extends AbstractParentApp {
 					} else {
 						// safely ignore, not tracking sequences
 					}
+				} else if (topic.startsWith("#SYS/LOG")) {
+					BrokerLogFileOnly.log(message);
 				} else {
             		logger.warn("Received unhandled message on topic: " + message.getDestination().getName());
             	}
@@ -187,18 +180,20 @@ public class OrderChecker extends AbstractParentApp {
         logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
         
         // Ready to start the application, just add some subs
-        session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/proc/>"));  // listen to "processed" msg receipts from subs
-        session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/update"));  // listen to state update messages from StatefulControl
-        session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-all/>"));
-        session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-" + myName + "/>"));  // listen to quit control messages
-		session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-" + myName + "/>"));  // listen to quit control messages in Gateway mode
+        addCustomSubscription("pq-demo/proc/>");  // listen to "processed" msg receipts from subs
+//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
+//        addCustomSubscription("pq-demo/control-all/>");
+//        addCustomSubscription("POST/pq-demo/control-all/>");
+//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
+//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
+        injectSubscriptions();
         
         final Thread shutdownThread = new Thread(new Runnable() {
             public void run() {
             	try {
 	                System.out.println("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
+	                removeSubscriptions();
 	                consumer.stop();
 	        		Thread.sleep(1000);
 	        		isConnected = false;  // shutting down

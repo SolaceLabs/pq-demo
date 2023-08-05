@@ -72,6 +72,11 @@ tasks.withType(JavaCompile).all {
     options.encoding = 'UTF-8'
 }
 
+task copyHtml(type: Copy) {
+    from 'html'
+    into 'build/staged/html'
+}
+
 // used to make the various start/run scripts
 def scripts = [
     'PQPublisher':'dev.solace.pqdemo.PQPublisher',

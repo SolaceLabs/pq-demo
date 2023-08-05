@@ -73,7 +73,7 @@ public class ScaledPoisson {
 
 	public static void main(String... args) {
 
-		final int pdMeanMs = 100;
+		final int pdMeanMs = 10;
 
 //		System.out.println(new ScaledPoisson(pdMeanMs).getScaledPdMean());
 //		System.exit(0);

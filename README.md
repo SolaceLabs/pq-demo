@@ -75,8 +75,8 @@ If you connect a regular Direct subscriber to the Solace event broker, you will
 - `pq-demo/control-all/<CMD>...`: all apps are listening to the `control-all` topics.  Not every app responds or cares about a specific message though. You will see this in the logging output of the app.  For example: publisher apps don't care about the `SLOW` slow subscriber Command, and subscribers don't care about the `RATE` message publish rate Command.
 - `pq-demo/control-<APP_NAME>/<CMD>...`: a "per-client" unicast topic that each app subscribes to, that allows you to send a Command message to _just_ that one application.  For example, simulating a single subscriber going _bad_ by increasing its `SLOW` slow subscriber processing time, or how long it takes to ACKnowledge a message with the `ACKD` Command.
 - `pq-demo/stats/...`: once a second, all publisher, subsriber, and OrderChecker apps will broadcast their statistics on these topics.  The JavaScript dashboard listens to these periodic message to update the stats shown on-screen.  At the same time, these statistics are logged.
-- `pq-demo/event/...`: when a PQSubscriber hsa a FlowEvent from their queue that they have connected to, they will log it and also publish a message. The JavaScript dashboard listens to these messages to visually update the subscriber's status.
-- `pq-demo/proc/<QUEUE_NAME>/<SUB_NAME>/<PQ_KEY>/<SEQ_NUM>`
+- `pq-demo/event/...`: when a app has a SessionEvent or FlowEvent happen, they will log it and also publish a message. The JavaScript dashboard listens to some these messages to visually update the subscriber's status.
+- `pq-demo/proc/<QUEUE_NAME>/<SUB_NAME>/<PQ_KEY>/<SEQ_NUM>`: these are messages published by the Subscribers, and are intended to be received the the backend OrderChecker.  In the Subscriber code, a message back to the queue can only be acknowledged once a successful `proc` message has been sent.  Note: this means that a Subscriber who loses their connection for some time might pubilsh an "old" message once it reconnects, and the OrderChecker will see a sequence change (but hopefully no gaps!).
 - `$SYS/LOG/...`: (MQTT) this demo utilizes the Solace feature of publishing the broker's `event.log` as messages.  The JavaScript dashboard listens to these broker messages to visually update the applications' and partitions' statuses.
 
 
@@ -117,7 +117,7 @@ Shows all Commands that the PQ Demo responds to (using topics)
          Sub,  1 param, integer [0..30000], default=0,  e.g. 'pq-demo/control-all/flush/1000'
 
 Use REST Messaging! E.g. curl -X POST http://localhost:9000/pq-demo/control-all/rate/100
-Use per-client topic with "-name" for individual control: 'pq-demo/control-MDwh0VxT7E/slow/10'
+Use per-client topic with "-name" for individual control: 'pq-demo/control-sub-8312/slow/10'
 Also, can force state with JSON payload:
   curl http://localhost:9000/pq-demo/state/force -d '{"PROB":0.5,"DISP":"agg","RATE":100,"KEYS":256}'
 ```

@@ -24,7 +24,6 @@ import java.util.EnumSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.Configurator;
 
 import com.solacesystems.jcsmp.BytesMessage;
 import com.solacesystems.jcsmp.BytesXMLMessage;
@@ -140,6 +139,9 @@ public class StatefulControl extends AbstractParentApp {
 					String topic = message.getDestination().getName();
 					if (topic.startsWith("POST/pq-demo/")) {  // gateway mode
 						topic = String.join("/", topic.split("/",2)[1]);
+					} else if (topic.startsWith("#SYS/LOG")) {
+						BrokerLogFileOnly.log(message);
+						return;  // exit early so prompt doesn't get printed
 					}
 					if (topic.equals("pq-demo/state/force")) {
 						String payload;
@@ -206,6 +208,7 @@ public class StatefulControl extends AbstractParentApp {
 		                System.out.println("Shutdown detected, graceful quitting begins...");
 		    			isShutdown = true;
 		    			isConnected = false;  // shutting down
+		    			removeSubscriptions();
 		    			consumer.stop();  // stop the consumers
 		    			Thread.sleep(500);
 		    			session.closeSession();  // will also close producer and consumer objects
@@ -220,17 +223,16 @@ public class StatefulControl extends AbstractParentApp {
 	        Runtime.getRuntime().addShutdownHook(shutdownThread);
 			
 			// Ready to start the application, just some subscriptions
-			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/control-all/>"));
-			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/control-all/>"));
-			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/>"));
-//			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("pq-demo/state/force"));
-			session.addSubscription(JCSMPFactory.onlyInstance().createTopic("POST/pq-demo/state/>"));  // REST gateway mode
+	        addCustomSubscription("pq-demo/state/>");  // all state messages
+	        addCustomSubscription("POST/pq-demo/state/>");  // all state messages
+//	        addCustomSubscription("#SYS/LOG/>");
+	        injectSubscriptions();
 			consumer.start();  // turn on the subs, and start receiving data
 			
 	        logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
 			logger.debug("Default starting state: " + buildStatePayload());
 			sendDirectMsg("pq-demo/state/update", buildStatePayload());  // broadcast my initial state, so any currently running apps get re-synced to my state
-	
+
         	System.out.print(PROMPT);
 			while (!isShutdown) {
 	            Thread.sleep(100);  // loopy loop
@@ -290,10 +292,12 @@ public class StatefulControl extends AbstractParentApp {
 				} else {
 					logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
 					stateMap.put(command, value);
-					if (sendCtrlMsgToAll) {
-						logger.info("Sending state update message: " + buildStatePayload());
-						sendDirectMsg("pq-demo/state/update", buildStatePayload());
-					}
+				}
+				if (sendCtrlMsgToAll) {
+//						logger.info("Sending state update message: " + buildStatePayload());
+//						sendDirectMsg("pq-demo/state/update", buildStatePayload());
+					logger.info("Sending control-all message for command " + command);
+					sendDirectMsg("pq-demo/control-all/" + command.name() + "/" + stateMap.get(command));
 				}
 			} else if (sendCtrlMsgToAll) {  // null return value
 				// could be STATE and PAUSE and QUIT and KILL

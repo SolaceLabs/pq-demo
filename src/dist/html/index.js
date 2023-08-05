@@ -52,30 +52,30 @@ updateCtrlList();
 
 function sendCtrlMsgToTopic(topic) {
   if (!mqttConn) {
-    console.log("Not connected to MQTT...");
+    log("Not connected to MQTT...");
     return;
   }
-  console.log("### Publishing MQTT control msg to topic: " + topic);
+  log("### Publishing MQTT control msg to topic: " + topic);
   mqttClient.publish(topic);  // publish a quit message that only that subscriber is listening to
 
 }
 
 function sendCtrlMsg() {
   if (!mqttConn) {
-    console.log("Not connected to MQTT...");
+    log("Not connected to MQTT...");
     return;
   }
   var who = d3.select('#ctrltopic').node().value;
   var cmd = d3.select('#ctrlcommand').node().value;
   var value = d3.select('#ctrlinput').node().value;
   if (value == null || value == "") {
-    console.log('Must specify something in value!');
+    log('Must specify something in value!');
     return;
   }
   if (isNaN(value)) {  // ok, so not a number
     // only thing can be the # of keys setting to 'max'
     if (value.toLowerCase() != "max") {
-      console.log("Invalid value");
+      log("Invalid value");
       return;
     }
   }
@@ -90,23 +90,23 @@ function connectMqtt(url, user, pw) {
   const options = { username: user, password: pw };
   mqttClient = mqtt.connect(url, options);
   mqttClient.on('offline', function () {
-    console.log(getTs() + "MQTT disconnected");
+    log("MQTT disconnected");
     mqttConn = false;
     updateConnBox();
   });
   mqttClient.on('connect', function () {
-    console.log(getTs() + "MQTT connected");
+    log("MQTT connected");
     mqttConn = true;
     if (Date.now() - mqttConnTs > 5000) {  // been disconnected for at least 5 seconds!
-      // console.log("TODO: SEMPV2 TO GET ALL PARTITION STATUS! And acquire new consumers");
-      console.log("Have been disconnected from MQTT for > 5 seconds, using SEMPv2 to refresh partition client mappings")
+      // log("TODO: SEMPV2 TO GET ALL PARTITION STATUS! And acquire new consumers");
+      log("Have been disconnected from MQTT for > 5 seconds, using SEMPv2 to refresh partition client mappings")
       getQueueDetails(props.sempUrl + sempV2PartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
     }
     mqttConnTs = Date.now();
     updateConnBox();
     mqttClient.subscribe('$SYS/LOG/#', function (err) {
       if (err) {
-        console.log("couldn't subscribe to logs-over-the-bus: $SYS/LOG/#");
+        log("couldn't subscribe to logs-over-the-bus: $SYS/LOG/#");
         mqttConn = false;
         updateConnBox();
         mqttClient.end();
@@ -114,7 +114,7 @@ function connectMqtt(url, user, pw) {
     });
     mqttClient.subscribe('pq-demo/stats/#', function (err) {
       if (err) {
-        console.log("couldn't subscribe to PQPub/PQSub stats: pq-demo/stats/#");
+        log("couldn't subscribe to PQPub/PQSub stats: pq-demo/stats/#");
         mqttConn = false;
         updateConnBox();
         mqttClient.end();
@@ -122,7 +122,7 @@ function connectMqtt(url, user, pw) {
     });
     mqttClient.subscribe('pq-demo/event/#', function (err) {
       if (err) {
-        console.log("couldn't subscribe to app events and flow events: pq-demo/event/#");
+        log("couldn't subscribe to app events and flow events: pq-demo/event/#");
         mqttConn = false;
         updateConnBox();
         mqttClient.end();
@@ -130,7 +130,7 @@ function connectMqtt(url, user, pw) {
     });
   });
   mqttClient.on('error', function (err) {
-    console.error('MQTT error: ' + err);
+    err('MQTT error: ' + err);
   });
   mqttClient.on('message', onMessage);
 }
@@ -187,11 +187,11 @@ function onMessage(topic, message) {  // string, Buffer
     var levels = topic.split("/");
     if (topic.indexOf("$SYS/LOG") == 0) {  // this a log message
       if (topic.indexOf('#rest') == -1 && topic.indexOf('CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED') == -1) {  // ignore rest, and we'll print part reassign later...
-        console.log(getTs() + topic);  // ignore REST connections coming and going
+        log(topic);  // ignore REST connections coming and going
       }
       var payload = message.toString();
       if (payload.slice(-1) == '\0') {
-        // console.error("NULL TERMIANTED");
+        // err("NULL TERMIANTED");
         // var test = message.toString().slice(0,-1);
         // console.error(test);
         payload = payload.slice(0, -1);
@@ -212,8 +212,8 @@ function onMessage(topic, message) {  // string, Buffer
       // CLIENT_CLIENT_CLOSE_FLOW
       // CLIENT_CLIENT_UNBIND
       // CLIENT_CLIENT_DISCONNECT
-      // console.log("EVENT: " + levels[5]);
-      // console.log("EVENT: " + payloadWords[4]);
+      // log("EVENT: " + levels[5]);
+      // log("EVENT: " + payloadWords[4]);
       switch (levels[5]) {
         case "CLIENT_CLIENT_CONNECT":
         case "CLIENT_CLIENT_NAME_CHANGE": {
@@ -227,7 +227,7 @@ function onMessage(topic, message) {  // string, Buffer
               newSub.index = subIndex++;
               newSub.curIndex = subMap.size;
               subMap.set(clientName, newSub);
-              console.log("Addding new sub " + clientName);
+              log("Addding new sub " + clientName);
               d3.select('#uses-box').style('visibility', 'hidden');
               enterNewSubs();
               updateSubStatus(newSub);
@@ -253,7 +253,7 @@ function onMessage(topic, message) {  // string, Buffer
               newPub.type = "pub";
               newPub.index = pubIndex++;
               pubMap.set(clientName, newPub);
-              console.log("Addding new pub " + clientName);
+              log("Addding new pub " + clientName);
               enterNewPubs();
             } else {  // it's already there, need update
               pubMap.get(clientName).connected = true;
@@ -261,13 +261,13 @@ function onMessage(topic, message) {  // string, Buffer
                 clearTimeout(pubMap.get(clientName).timerHandle);
                 pubMap.get(clientName).timerHandle = null;
               }
-              console.log("Updating " + clientName);
+              log("Updating " + clientName);
             }
             d3.select('#uses-box').style('visibility', 'hidden');
             updatePubs();
           } else if (clientName.indexOf('oc') == 0) {
             if (oc) {
-              console.log("Already tracking an order checker called " + oc.name);
+              log("Already tracking an order checker called " + oc.name);
               return;
             }
             d3.select('#uses-box').style('visibility', 'hidden');
@@ -279,7 +279,7 @@ function onMessage(topic, message) {  // string, Buffer
             enterNewOc();
             updateOc();
           } else {
-            // console.log("Name not recognized: " + clientName);
+            // log("Name not recognized: " + clientName);
           }
           break;
         }
@@ -320,7 +320,7 @@ function onMessage(topic, message) {  // string, Buffer
               newSub.index = subIndex++;
               newSub.curIndex = subMap.size;
               subMap.set(clientName, newSub);
-              console.log("Addding new sub " + clientName);
+              log("Addding new sub " + clientName);
               enterNewSubs();
               updateSubStatus(newSub);
               updateSubsPos();
@@ -332,7 +332,7 @@ function onMessage(topic, message) {  // string, Buffer
             }
           } else if (clientName.indexOf("pq/sub") == 0) {  // wrong queue
             if (!subMap.has(clientName)) {
-              console.log("Ignoring client " + clientName + " who has bound to wrong queue: " + queueName);
+              log("Ignoring client " + clientName + " who has bound to wrong queue: " + queueName);
             } else {  // it's already there, need update
               subMap.get(clientName).bound = "wrong";
               updateSubStatus(subMap.get(clientName));
@@ -380,12 +380,12 @@ function onMessage(topic, message) {  // string, Buffer
             msgRate.interrupt("msg-count-update-sub-" + sub.name);
             msgRate.text('0');  // force to 0
             if (sub.timerHandle) {
-              console.log('*********************************************************** this shouldnt happen');
+              log('*********************************************************** this shouldnt happen');
             }
             var disconnectTimer = setTimeout(function () {
               if (subMap.has(clientName) && subMap.get(clientName).connected == false) {  // still disconnected, didn't come back
                 const subCurIndex = subMap.get(clientName).curIndex;
-                console.log(getTs() + 'subscriber DISCONNECT timer firing, deleting sub ' + clientName);
+                log('subscriber DISCONNECT timer firing, deleting sub ' + clientName);
                 subMap.delete(clientName);
                 rebalanceSubIndexes(subCurIndex);
                 updateSubsPos();  // it will be disappearing now
@@ -400,11 +400,11 @@ function onMessage(topic, message) {  // string, Buffer
               pubMap.get(clientName).connected = false;
               pubMap.get(clientName).activeFlow = false;
               if (pubMap.get(clientName).timerHandle) {
-                console.log('*********************************************************** this shouldnt happen');
+                log('*********************************************************** this shouldnt happen');
               }
               var disconnectTimer = setTimeout(function () {
                 if (pubMap.get(clientName) && pubMap.get(clientName).connected == false) {  // still disconnected, didn't come back
-                  console.log(getTs() + 'publisher DISCONNECT timer firing, deleting pub ' + clientName);
+                  log('publisher DISCONNECT timer firing, deleting pub ' + clientName);
                   pubMap.delete(clientName);
                   updatePubs();
                 }
@@ -423,7 +423,7 @@ function onMessage(topic, message) {  // string, Buffer
               updateOc();
               setTimeout(function () {
                 if (oc.name == clientName && oc.connected == false) {  // still disconnected, didn't come back
-                  console.log(getTs() + 'OC DISCONNECT timer firing, deleting ' + clientName);
+                  log('OC DISCONNECT timer firing, deleting ' + clientName);
                   oc = null;
                   updateOc();
                 }
@@ -434,13 +434,13 @@ function onMessage(topic, message) {  // string, Buffer
         }
         case "CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED": {
           // console.log(payloadWords);
-          console.log(getTs() + '*** ' + payloadWords[4] + "      client name: " + payloadWords[6] + ",      queue: " + payloadWords[8] + ",        part: " + payloadWords[10]);
+          log('*** ' + payloadWords[4] + "      client name: " + payloadWords[6] + ",      queue: " + payloadWords[8] + ",        part: " + payloadWords[10]);
           const clientName = payloadWords[6];
           const queueName = payloadWords[8];
           const partitionNum = payloadWords[10];  // it's actually a String, like "3"
           if (queueName == queueObj.name) {  // don't do anything if this is not the right queue!
             if (!subMap.has(clientName)) {
-              console.log("HAVEN'T SEEN BEFORE!!!  " + clientName);
+              log("HAVEN'T SEEN BEFORE!!!  " + clientName);
               var newSub = getBlankClient();
               newSub.name = clientName;
               newSub.connected = true;
@@ -450,7 +450,7 @@ function onMessage(topic, message) {  // string, Buffer
               newSub.index = subIndex++;
               newSub.curIndex = subMap.size;
               subMap.set(clientName, newSub);
-              console.log("Addding new sub " + clientName);
+              log("Addding new sub " + clientName);
               enterNewSubs();
               updateSubStatus(newSub);
               updateSubsPos();
@@ -497,13 +497,13 @@ function onMessage(topic, message) {  // string, Buffer
               }, 100);
             }
           } else {
-            console.log('Ignoring rebalance, wrong queue');
+            log('Ignoring rebalance, wrong queue');
           }
           break;
         }
         case "VPN_AD_PARTITIONED_QUEUE_REBALANCE_COMPLETED": {
           if (payloadWords[10] != queueObj.name) {
-            console.log("Ignoring rebalance, wrong queue");
+            log("Ignoring rebalance, wrong queue");
             return;
           }
           clearInterval(rebalanceTimer);
@@ -523,7 +523,7 @@ function onMessage(topic, message) {  // string, Buffer
       var clientName = levels.slice(3).join("/");
       if (clientName.indexOf("pq/sub") == 0) {  // only subscribers have flow active events!
         if (!subMap.has(clientName)) {
-          // console.log("******************************* NEW FLOW ACTIVE FOR CLIENT I HAVEN'T SEENT!!! " + clientName);
+          // log("******************************* NEW FLOW ACTIVE FOR CLIENT I HAVEN'T SEENT!!! " + clientName);
           // var newSub = getBlankClient();
           // newSub.name = clientName;
           // newSub.connected = true;
@@ -533,7 +533,7 @@ function onMessage(topic, message) {  // string, Buffer
           // newSub.index = subIndex++;
           // subMap.set(clientName, newSub);
         } else {  // it's already there, need update
-          console.log(getTs() + "updating FLow for " + clientName + ": " + levels[2]);
+          log("updating FLow for " + clientName + ": " + levels[2]);
           subMap.get(clientName).activeFlow = levels[2] == "FLOW_ACTIVE";
           subMap.get(clientName).flow = levels[2];
           updateSubStatus(subMap.get(clientName));
@@ -613,7 +613,7 @@ function onMessage(topic, message) {  // string, Buffer
           enterNewOc();
           updateOc();
         } else if (clientName != oc.name) {
-          console.log("Getting stats for another Order Checker?");
+          log("Getting stats for another Order Checker?");
           return;
         }
         Object.assign(oc, payload);
@@ -623,7 +623,7 @@ function onMessage(topic, message) {  // string, Buffer
       }
     }
   } catch (e) {
-    console.error(getTs() + 'add an issue in my onMessage() event handler');
+    err('add an issue in my onMessage() event handler');
     console.error(e);
   }
 }  // end of message listener
@@ -648,7 +648,7 @@ setInterval(function goneClientsChecker() {
   for (let client of subMap.values()) {
     if (client.name.indexOf("pq/sub") == 0 && now - client.lastTs > 25000) {  // it's one of my demo subs && 25 seconds since we've heard from them
       // this allows for non-demo clients (like SdkPerf to use this, and not have the clients disappear
-      console.log(getTs() + 'Removing sub ' + client.name + ' as it has been 25 seeconds since last comms');
+      log('Removing sub ' + client.name + ' as it has been 25 seeconds since last comms');
       subMap.delete(client.name);
       rebalanceSubIndexes(client.curIndex);
       updated = true;
@@ -662,7 +662,7 @@ setInterval(function goneClientsChecker() {
   updated = false;
   for (let client of pubMap.values()) {
     if (now - client.lastTs > 15000) {  // 20 seconds since we've heard from them
-      console.log(getTs() + 'Removing pub ' + client.name + ' as it has been 15 seeconds since last comms');
+      log('Removing pub ' + client.name + ' as it has been 15 seeconds since last comms');
       pubMap.delete(client.name);
       updated = true;
     }
@@ -672,7 +672,7 @@ setInterval(function goneClientsChecker() {
   }
 
   if (oc && now - oc.lastTs > 5000) {
-    console.log(getTs() + 'Removing OC ' + oc.name + ' as it has been 5 seeconds since last comms');
+    log('Removing OC ' + oc.name + ' as it has been 5 seeconds since last comms');
     oc = null;
     updateOc();
   }
@@ -805,20 +805,20 @@ function publishPauseMessage(clientName) {
 }
 
 function publishQuitMessage(clientName) {
-  console.log(getTs() + '### quit message published to client ' + clientName);  // to help correlate with app logs
+  log('### quit message published to client ' + clientName);  // to help correlate with app logs
   const clientUid = clientName.substring(clientName.lastIndexOf('/') + 1);
   mqttClient.publish("pq-demo/control-" + clientUid + "/quit");  // publish a quit message that only that subscriber is listening to
 }
 
 function publishKillMessage(clientName) {
-  console.log(getTs() + '### kill message published to client ' + clientName);  // to help correlate with app logs
+  log('### kill message published to client ' + clientName);  // to help correlate with app logs
   const clientUid = clientName.substring(clientName.lastIndexOf('/') + 1);
   mqttClient.publish("pq-demo/control-" + clientUid + "/kill");  // publish a kill message that only that subscriber is listening to
 }
 
 function bounceClient(clientName) {
   if (!sempConn) return;
-  console.log(getTs() + '### bounce client triggered for ' + clientName);  // to help correlate with app logs
+  log('### bounce client triggered for ' + clientName);  // to help correlate with app logs
   // const postRequest = '<rpc><show><queue><name>' + queueObj.partitionPattern + '</name></queue></show></rpc>';
   const postRequest = '<rpc><admin><client><name>' + clientName + '</name><vpn-name>' + queueObj.msgVpnName + '</vpn-name><disconnect/></client></admin></rpc>';
   const start = Date.now();
@@ -836,12 +836,12 @@ function bounceClient(clientName) {
       // console.log(millis);
       // console.log(str);
     })
-    .catch(error => console.error("didn't work " + error));
+    .catch(error => err("didn't work " + error));
 }
 
 function toggleAcl(clientName, type, topic) {  // could be publish topic or connect IP addr
   if (!sempConn) return;
-  console.log(getTs() + '### toggle ' + type + ' ACL triggered for ' + clientName);  // to help correlate with app logs
+  log('### toggle ' + type + ' ACL triggered for ' + clientName);  // to help correlate with app logs
   headers.set('Content-Type', 'application/json');
   let otherHeaders = {
     method: 'GET',
@@ -854,7 +854,7 @@ function toggleAcl(clientName, type, topic) {  // could be publish topic or conn
     .then(response => response.json())
     .then(json => {
       if (json.meta.responseCode != 200) {
-        console.error("Error trying to connect via SEMPv2");
+        err("Error trying to connect via SEMPv2");
         console.error(json.meta);
         return;  // probably authoriztion error
       }
@@ -869,34 +869,41 @@ function toggleAcl(clientName, type, topic) {  // could be publish topic or conn
       .then(json => {
         if (json.meta.responseCode >= 400 && json.meta.error.status == 'ALREADY_EXISTS') {
           // probably alrady exists..!
-          console.error("No problem! Just tried adding, and it already exists, so I'll just remove it instead");
+          err("No problem! Just tried adding, and it already exists, so I'll just remove it instead");
           otherHeaders.method = 'DELETE';
           otherHeaders.body = null;
           fetch(props.sempUrl + '/SEMP/v2/config/msgVpns/' + props.vpn + '/aclProfiles/' + acl + (type == 'connect' ? '/clientConnectExceptions/' + address + '%2f32' : '/publishTopicExceptions/smf,' + encodeURIComponent(topic)) , otherHeaders)
           .then(response => response.json())
           .then(json => {
             if (json.meta.responseCode != 200) {
-              console.error("Error trying to connect via SEMPv2");
+              err("Error trying to connect via SEMPv2");
               console.error(json.meta);
               return;  // probably authoriztion error
             }
-            console.log('Removed the ACL ' + type + ' exception on this broker in ACL profile ' + acl + ': ' + address + '/32');
+            log('Removed the ACL ' + type + ' exception on this broker in ACL profile ' + acl + ': ' + address + '/32');
           })
-          .catch(error => console.error("didn't work " + error));
+          .catch(error => err("didn't work " + error));
         } else if (json.meta.responseCode != 200) {
-          console.error("Error trying to connect via SEMPv2");
+          err("Error trying to connect via SEMPv2");
           console.error(json.meta);
           return;  // probably authoriztion error
         } else {
           // woohoo, done!
-          console.log('Made an ACL ' + type + ' exception on this broker in ACL profile ' + acl + ': ' + address + '/32');
+          log('Made an ACL ' + type + ' exception on this broker in ACL profile ' + acl + ': ' + address + '/32');
         }
       })
-      .catch(error => console.error("didn't work " + error));
+      .catch(error => err("didn't work " + error));
     })
-    .catch(error => console.error("didn't work " + error));
+    .catch(error => err("didn't work " + error));
 }
 
+function log(logEntry) {
+  console.log(getTs() + logEntry);
+}
+
+function err(logEntry) {
+  console.err(getTs() + logEntry);
+}
 
 function getTs() {
   const ts = (Date.now()) - (new Date().getTimezoneOffset() * 60000);
@@ -904,7 +911,7 @@ function getTs() {
   const m = (Math.floor((ts / 60000) % 60)).toString().padStart(2, '0');
   const s = (Math.floor((ts / 1000) % 60)).toString().padStart(2, '0');
   const ms = (Math.floor(ts % 1000)).toString().padStart(3, '0');
-  return h + ':' + m + ':' + s + '.' + ms + ' ';
+  return h + ':' + m + ':' + s + ',' + ms + ' ';  // comma matches log4j2 date format
 
   return Math.floor((ts / 3600000) % 24) + ":" +
     Math.floor((ts / 60000) % 60) + ":" +
@@ -920,7 +927,7 @@ function getTs() {
 function getClientYPos(n, i) {
   const totSize = n * clientDivHeight + (Math.max(0, n - 1) * clientDivPadding);
   const val = (h / 2) - totSize / 2 + (i * clientDivHeight) + (i * clientDivPadding) - cssVertPadding;
-  // console.log("h: " + h + ", totSize: " + totSize + ", val: " + val);
+  // log("h: " + h + ", totSize: " + totSize + ", val: " + val);
   return val;
 }
 
@@ -963,7 +970,7 @@ function injectPublishException() {
   console.log(Array.from(pubMap.keys()));
   let pubName = Array.from(pubMap.keys())[0];
   let topic = document.getElementById("acl").value;
-  console.log("topic is: '" + topic + "'");
+  log("topic is: '" + topic + "'");
   toggleAcl(pubName, 'publish', topic);
 }
 
@@ -1059,7 +1066,7 @@ function updateSubsPos() {
   var updatedSubs = d3.select('#subs').selectAll('div').data(subsSorted, d => d.name);
   var exitingSubs = updatedSubs.exit();
   if (exitingSubs.size() > 0) {
-    // console.log('have some exiting subs');
+    // log('have some exiting subs');
     // const delay = d3.transition("delaymove").duration(100).delay(500);
     updatedSubs//.transition(delay)
       .style('top', function (d, i) { return getClientYPos(numSubs, i); })
@@ -1071,7 +1078,7 @@ function updateSubsPos() {
     const trans = d3.transition("fadeout").duration(250);
     exitingSubs.transition(trans).style('opacity', 0).remove();
   } else {
-    // console.log('NO exiting subs');
+    // log('NO exiting subs');
     updatedSubs
       .style('top', function (d, i) { return getClientYPos(numSubs, i); })
       .style('left', (w * 2 / 3) + padding)
@@ -1154,14 +1161,14 @@ function updateOc() {
   const ocArray = oc == null ? [] : [oc]
   var updatedOc = d3.select('#oc').selectAll('div').data(ocArray);
   // var updatedOc = d3.select('#oc').select('div').datum(oc);
-  // console.log('CONECTED: ' + (oc ? oc.connected : 'null!'));
+  // log('CONECTED: ' + (oc ? oc.connected : 'null!'));
   updatedOc
     .style('top', h - 200) //(d, i) => getClientYPos(numPubs, i))
     .style('left', padding)
     .style('width', colWidth + "px")
     .style('height', clientDivHeight + "px")
     .style('background-color', function (d) { return d.connected ? "#ddffdd" : "#ffdddd" })
-    // .style('background-color', function (d) { console.log('INDIDE ' + d.connected); return d.connected ? "#ddffdd" : "#ffdddd"; })
+    // .style('background-color', function (d) { log('INDIDE ' + d.connected); return d.connected ? "#ddffdd" : "#ffdddd"; })
   ;
   // if (oc && !oc.connected) updatedOc.style('background-color', "#ddffdd");
   updatedOc.exit().remove();
@@ -1327,7 +1334,7 @@ function makePolyPoints(x1, y1, rev) {
 // ACTIVE FLOW LINES!! //////////////////////////////////////
 
 function updateLines() {
-  // console.log("partition count on updateLines() is " + queueObj.partitionCount);
+  // log("partition count on updateLines() is " + queueObj.partitionCount);
   if (queueObj.partitionCount > 0) {
     // if (partitionMap.size > 0) {
     var partitionArray = Array.from(partitionMap.values()).sort(function (a, b) { return a.index - b.index });
@@ -1381,7 +1388,7 @@ function updateLines() {
       // console.log(sub.name + ": has queue: " + sub.queueName + ", and active flow: " + sub.activeFlow);
       if (sub.queueName == queueObj.name && sub.activeFlow) flowArray.push(sub);
     }
-    // console.log('flowarray: ' + JSON.stringify(flowArray));
+    // log('flowarray: ' + JSON.stringify(flowArray));
     // flowArray.sort(function (a, b) { return b.index - a.index });
     d3.select("#lines").selectAll('line').data(flowArray, d => d.index).enter().append('line');  // inserts new lines
     var updatedLines = d3.select("#lines").selectAll('line').data(flowArray, d => d.index);
@@ -1488,7 +1495,7 @@ function updatePartitions() {
         p.client = null;
         d3.select('#partsubnum' + p.index).text('No Sub');
         return;
-        console.error("INSIDE UPDATE PARTITIONS- SOMEHOW HAVE MISSING SUB");
+        err("INSIDE UPDATE PARTITIONS- SOMEHOW HAVE MISSING SUB");
         console.error(p);
         console.error(subMap);
         return;
@@ -1619,12 +1626,12 @@ function anotherSmoothStats(client, stat, trans, colStr) {
 function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
   try {
     // if (type == 'oc') console.log(client.rate);
-    // console.log("msgRate: "+rate);
+    // log("msgRate: "+rate);
     // if (!client.activeFlow) return;  // this seems dumb!  // don't update a disconnected guy!
     if (visible) {
       var t = d3.transition("msg-count-update-" + type + "-" + client.name).duration(1000).ease(d3.easeLinear);
       const msgRate = d3.select('#var' + type + 'rate' + client.index);
-      if (!msgRate) console.log('uh oh msgRate is null');
+      if (!msgRate) log('uh oh msgRate is null');
       const o2 = +(msgRate.text().replaceAll(',', ''));
       msgRate.datum(client.rate).transition(t).textTween(d => {
         const i2 = d3.interpolateRound(o2, d);
@@ -1763,7 +1770,7 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
 
     } 
   } catch (e) {
-    console.error('had an issue in update client ' + type + ' stats');
+    err('had an issue in update client ' + type + ' stats');
     console.error(client);
     console.error(e);
     mqttClient.end();
@@ -1805,7 +1812,7 @@ function getQueueDetails(sempRequestPossiblyPaged) {
         updateLines();  // adds in the unconnected flow lines
       }
     })
-    .catch(error4 => { console.error("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
+    .catch(error4 => { err("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
 }
 
 let headers = new Headers();  // we'll need these multiple times
@@ -1835,7 +1842,7 @@ function trySempConnectivity(props) {
     .then(json => {
       console.log(json);
       if (json.meta.responseCode != 200) {
-        console.error("Error trying to connect via SEMPv2");
+        err("Error trying to connect via SEMPv2");
         console.error(json.meta);
         // still need to update queues and such
         drawQueue();
@@ -1847,7 +1854,7 @@ function trySempConnectivity(props) {
       queueObj.msgVpnName = json.data.msgVpnName;
       // console.log(queueObj);
       if (queueObj.accessType == 'Partitioned') {
-        console.log("LOOKS LIEK A PARITIONED QUEUE!!");
+        log("LOOKS LIEK A PARITIONED QUEUE!!");
         // let's add the right number of uninitialized partitions to our Map
         for (let i = 0; i < queueObj.partitionCount; i++) {
           partitionMap.set("" + i, { index: "" + i, client: null });
@@ -1876,7 +1883,7 @@ function trySempConnectivity(props) {
             // now, this response will either contain the info we want, or we might have to ask a 2nd timd following the paging cookie
             if (json.data && json.data.length > 0) {  // good! this response has data
               // var millis = Date.now() - start;
-              // console.log("Time for two SEMPv2 queue details queries: " + millis + "ms");
+              // log("Time for two SEMPv2 queue details queries: " + millis + "ms");
               var pqName = json.data[0].queueName
               // console.log(pqName);
               queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
@@ -1898,7 +1905,7 @@ function trySempConnectivity(props) {
                 .then(json2 => {
                   console.log(json2);
                   // var millis = Date.now() - start;
-                  // console.log("Time for three SEMPv2 queue details queries: " + millis + "ms");
+                  // log("Time for three SEMPv2 queue details queries: " + millis + "ms");
                   var pqName = json2.data[0].queueName;
                   queueObj.partitionPattern = pqName.split("/").splice(0, 2).join("/") + "/*";  // replace the last "partition number" part of the name with a * for wildcard searching
                   // done, that's enough... time to start the SEMPv1 polling
@@ -1906,19 +1913,19 @@ function trySempConnectivity(props) {
                   drawQueue();  // shows the access type + num parts (and draws the partitions)
                   updateLines();  // adds in the unconnected flow lines
                 })
-                .catch(error4 => { console.error("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
+                .catch(error4 => { err("Could not fetch individual partitions details via SEMPv2 paged request"); console.error(error4); });
             } else {
-              console.error("Issue is SEMPv2 trying to get partition names..!")
+              err("Issue is SEMPv2 trying to get partition names..!")
             }
           })
-          .catch(error3 => { console.error("Could not fetch individual partitions details via SEMPv2"); console.error(error3); });
+          .catch(error3 => { err("Could not fetch individual partitions details via SEMPv2"); console.error(error3); });
 
  */
 
       } else {     // end of parition queue block, so this not a partitioned queue!!!
-        console.log("This is an Exclusive queue or regular Non-Excl queue");
+        log("This is an Exclusive queue or regular Non-Excl queue");
         var millis = Date.now() - start;
-        console.log("Time for a single SEMPv2 queue details query: " + millis + "ms");
+        log("Time for a single SEMPv2 queue details query: " + millis + "ms");
         queueObj.partitionCount = 0;
         partitionMap.set("0", { index: "0", client: null });
         queueObj.partitionPattern = queueObj.name;  // used for the SEMPv1 queries
@@ -1927,7 +1934,7 @@ function trySempConnectivity(props) {
       }
     })  // initial SEMPv2 queue fetch block
     .catch(e => {
-      console.error("Could not fetch queue details with SEMPv2");
+      err("Could not fetch queue details with SEMPv2");
       console.error(e);
       drawQueue();
     });
@@ -1958,8 +1965,8 @@ function parseSempResponse(sempResponse, orderedArrayOfSempStats) {
     searchIndex = 0;
   }
   const end = Date.now();
-  // console.log("searching the XML took " + (end - start) + "ms.");
-  // console.log('SEMP stats: ' + JSON.stringify(stats));
+  // log("searching the XML took " + (end - start) + "ms.");
+  // log('SEMP stats: ' + JSON.stringify(stats));
   return stats;
 }
 
@@ -1994,7 +2001,7 @@ function sempV1Poll(postRequest, statsToFindArray) {
       updateStatsFromSemp(parseSempResponse(str, statsToFindArray));
       return;
     })
-    .catch(error2 => { console.error("Exception while trying to fetch SEMPv1 response. Oh well."); console.error(error2); });
+    .catch(error2 => { err("Exception while trying to fetch SEMPv1 response. Oh well."); console.error(error2); });
 }
 
 
@@ -2009,7 +2016,7 @@ function killSemp() {
 }
 
 function activateSemp() {
-  console.log("### ACTIVATING SEMP!");
+  log("### ACTIVATING SEMP!");
   if (!sempConn) {  // first time
     sempConn = true;
     updateConnBox();
@@ -2038,25 +2045,25 @@ function changeStatSmoothUsingTrans(transition, statId, val) {  // statId like '
       const curVal = +(curValText.text().replaceAll(',', ''));
       curValText.datum(val).transition(transition).textTween(d => {
         const i2 = d3.interpolateRound(curVal, d);
-        return function (t) { return i2(t); };
+        return function (t) { return d3.format(',d')(i2(t)); };
       });
     } else {
       d3.select(statId).text(d3.format('d')(val));
     }
   } catch (e) {
-    console.error(getTs() + 'had an issue in my changeStatSmoothUsingTrans function');
+    err('had an issue in my changeStatSmoothUsingTrans function');
     console.error(e);
   }
 }
 
 
 function updateStatsFromSemp(stats) {
-  // console.log('updateDetph stats called!  ' + JSON.stringify(stats));
+  // log('updateDetph stats called!  ' + JSON.stringify(stats));
   if (stats['num-messages-spooled']) {
     // we know this is a SEMPv1 call for message-spool depths, let's use a single transition for all...
     var t = d3.transition('num-messages-spooled').duration(789).ease(d3.easeLinear);
     const sa = stats['num-messages-spooled'];
-    // console.log('detail stats lengh: ' + sa.length + ',  partCount: ' + queueObj.partitionCount);
+    // log('detail stats lengh: ' + sa.length + ',  partCount: ' + queueObj.partitionCount);
     if (queueObj.partitionCount > 0) {
       if (sa.length > queueObj.partitionCount) {  // grew
         for (let i = queueObj.partitionCount; i < sa.length; i++) {
@@ -2069,7 +2076,7 @@ function updateStatsFromSemp(stats) {
         for (let i = partitionMap.size-1; i >= sa.length; i--) {
           partitionMap.delete("" + i);
           queueObj.partitionCount--;
-          console.log('deleting ' + i);
+          log('deleting ' + i);
         }
         drawQueue();
         updateLines();
@@ -2079,6 +2086,11 @@ function updateStatsFromSemp(stats) {
       for (let i = 0; i < sa.length; i++) {
         totalDepth += +(sa[i]);  // convert the string to a number
         changeStatSmoothUsingTrans(t, '#varpartdepth' + i, sa[i]);
+        if (sa[i] > 0) {  // some number of messages spooled
+          d3.select('#varpartdepth' + i).style('font-weight', 'bold');
+        } else {
+          d3.select('#varpartdepth' + i).style('font-weight', 'normal');
+        }
       }
       changeStatSmoothUsingTrans(t, '#varqdepth', totalDepth);
       // let's do something custom for showing off the message depth!  shade the background of each partition div
@@ -2121,7 +2133,7 @@ function updateStatsFromSemp(stats) {
   } else {  // it better be the rates per second!
     var t = d3.transition('current-rates-per-second').duration(789).ease(d3.easeLinear);
     var sa = stats['current-ingress-rate-per-second'];
-    // console.log('rates stats lengh: ' + sa.length + ',  partCount: ' + queueObj.partitionCount);
+    // log('rates stats lengh: ' + sa.length + ',  partCount: ' + queueObj.partitionCount);
     if (queueObj.partitionCount > 0) {  // partitioned queue
       if (sa.length-1 > queueObj.partitionCount) {  // grew  (-1 because the rates includes the total for all queues, so # parts + total)
         for (let i = queueObj.partitionCount; i < sa.length-1; i++) {
@@ -2134,7 +2146,7 @@ function updateStatsFromSemp(stats) {
         for (let i = partitionMap.size-1; i >= sa.length-1; i--) {
           partitionMap.delete("" + i);
           queueObj.partitionCount--;
-          console.log('deleting ' + i);
+          log('deleting ' + i);
         }
         drawQueue();
         updateLines();
@@ -2182,7 +2194,7 @@ var params = window.location.search.substring(1);
 var props = {};
 var showPublishAcl = false;
 
-console.log("PARAMS: " + params);
+log("PARAMS: " + params);
 params = params.split('&'); // first element of split
 params.forEach(p => {
   var blah = p.split('=');
@@ -2195,7 +2207,7 @@ params.forEach(p => {
     case 'sempUrl': props.sempUrl = blah[1]; break;
     case 'sempUser': props.sempUser = blah[1]; break;
     case 'sempPw': props.sempPw = blah[1]; break;
-    case 'nacks': if (blah.length == 1) showPublishAcl = true; else console.log('nope'); break;
+    case 'nacks': if (blah.length == 1) showPublishAcl = true; else log('nope'); break;
     case '': break;  // handles a trailing & or something...
     default: writeToScreen("<b>ERROR: DIDN'T PARSE THIS URL PARAM: '" + p + "'</b>");
   }
@@ -2208,7 +2220,7 @@ if (props.sempUrl) {  // they've provided a SEMP URL, make sure the other option
   if (!props.sempUser) writeToScreen("<b>ERROR: MISSING 'sempUser' URL PARAM</b>");
   if (!props.sempPw) writeToScreen("<b>ERROR: MISSING 'sempPw' URL PARAM</b>");
   shouldStop = !(props.sempUser && props.sempPw && props.vpn);
-  // (props.sempUser && props.sempPw) ? console.log("yes semp user") : console.log("no semp user");
+  // (props.sempUser && props.sempPw) ? log("yes semp user") : log("no semp user");
 }
 
 if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !props.queue || shouldStop) {
@@ -2231,9 +2243,9 @@ if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !pr
     headers.set('Authorization', 'Basic ' + btoa(props.sempUser + ":" + props.sempPw));
     trySempConnectivity(props);
   } else {
-    console.log("Not attempting SEMP connectivity");
+    log("Not attempting SEMP connectivity");
   }
-  console.log("CONNECTING MQTT to " + props.mqttUrl + "...");
+  log("CONNECTING MQTT to " + props.mqttUrl + "...");
   connectMqtt(props.mqttUrl, props.user, props.pw);
   svgSetup();
 }
@@ -2248,10 +2260,10 @@ var visibleTs = Date.now();
 document.addEventListener("visibilitychange", function () {
   visible = document.visibilityState == 'visible';// ? Date.now() : 0;
   if (visible) {
-    console.log(getTs() + "Gained focus, reenabling animated transitions");
+    log("Gained focus, reenabling animated transitions");
     visibleTs = Date.now();
   } else {
-    console.log(getTs() + "Lost focus, disabling animated transitions");
+    log("Lost focus, disabling animated transitions");
   }
-  // console.log("CHANGE IN VISIBILITY!  " + document.visibilityState + " at time " + Math.floor((Math.floor(Date.now() / 1000) % 3600) / 60) + "m" + (((Date.now() / 1000).toFixed(0) % 3600) % 60).toFixed(0) + "s");
+  // log("CHANGE IN VISIBILITY!  " + document.visibilityState + " at time " + Math.floor((Math.floor(Date.now() / 1000) % 3600) / 60) + "m" + (((Date.now() / 1000).toFixed(0) % 3600) % 60).toFixed(0) + "s");
 }, false);

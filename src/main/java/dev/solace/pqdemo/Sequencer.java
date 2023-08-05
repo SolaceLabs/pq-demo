@@ -226,8 +226,8 @@ public class Sequencer {
 			    		switch (seqStatus.status) {
 	                        case NO_OC:
 	                        case OK:
-	                        if (redeliveredFlag) {
-	                            logger.info(logEntry);  // log all redeliveries, even if "OK" sequencing
+	                        if (redeliveredFlag || seqStatus.diffSub) {
+	                            logger.info(logEntry);  // log all redeliveries, even if "OK" sequencing, and when sub changes
 	                        } else {
 	                            if (seqStatus.numDupes > 0) {  // duplicate message, but no redelivered flag?
 	                                logger.info(logEntry);  // log it
@@ -243,6 +243,7 @@ public class Sequencer {
 	                        }
 							break;
 			    		case JUMP:  // shouldn't jump ahead, unless we're a non-ex queue and redelivering?  Or during NACK retransmission
+			    			// JUMP will always at log at >= INFO
 			    			oos++;
 			    			if (seqStatus.numDupes > 0) {  // have seen this one before
 			    				if (prev) {
@@ -263,6 +264,7 @@ public class Sequencer {
 			    			}
 							break;
 			    		case REWIND:  // rewinding, but this is a redelivered msg, so is ok?
+			    			// REWIND will always at log at >= INFO
 							if (prev) {
 			    				logger.info(logEntry);
 							} else {
