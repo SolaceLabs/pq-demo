@@ -413,12 +413,12 @@ public abstract class AbstractParentApp {
 						}
 					}
 				} else {
-					logger.info("Ignoring " + command + " message");
+					logger.debug("Ignoring " + command + " message");
 					return null;
 				}
 			}
 		} catch (IllegalArgumentException e) {  // bad control topic or syntax
-			logger.warn("Exception thrown for control message '" + topic + "': " + e.getMessage());
+			logger.warn("Ignoring! " + e.getMessage());
 			return null;
 		}
     }

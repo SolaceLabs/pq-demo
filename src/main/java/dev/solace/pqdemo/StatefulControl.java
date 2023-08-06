@@ -44,8 +44,9 @@ public class StatefulControl extends AbstractParentApp {
 	private static final String APP_NAME = StatefulControl.class.getSimpleName();
 
 	static {
-		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));  // publishers
-		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));  // subscribers
+		addMyCommands(EnumSet.allOf(Command.class));
+//		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));  // publishers
+//		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));  // subscribers
 	}
 	private static final String PROMPT = ": ";
 	private static final Logger logger = LogManager.getLogger();  // log4j2, but could also use SLF4J, JCL, etc.
@@ -171,7 +172,7 @@ public class StatefulControl extends AbstractParentApp {
 							Command command = Command.valueOf(levels[2].toUpperCase());
 							handleCommandUpdate(command, levels.length > 3 ? levels[3] : null, false);
 						} catch (RuntimeException e) {
-							logger.warn("Exception thrown for control message: " + topic, e);
+							logger.warn("Ignoring! " + e.getMessage());
 						}
 						if (message.getReplyTo() != null) {  // control message needs reply!  probably due to REST Gateway mode (otherwise it'd just time out)
 							sendReplyMsg("\n", message);  // add some newlines so the terminal prompt goes back to normal position 
@@ -303,6 +304,8 @@ public class StatefulControl extends AbstractParentApp {
 				// could be STATE and PAUSE and QUIT and KILL
 				logger.info("Sending control-all message for command " + command);
 				sendDirectMsg("pq-demo/control-all/" + command.name());
+			} else {
+				logger.debug("Ignoring");
 			}
 		} else {
 			logger.debug("Ignoring! (not watching)");

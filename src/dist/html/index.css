@@ -145,5 +145,5 @@ button:disabled {
     right: 20px;
     z-index: 99;
     padding: 0px 10px;
-    pointer-events: none;
+    /* pointer-events: none; */
 }

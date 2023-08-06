@@ -73,11 +73,12 @@ function sendCtrlMsg() {
     return;
   }
   if (isNaN(value)) {  // ok, so not a number
-    // only thing can be the # of keys setting to 'max'
-    if (value.toLowerCase() != "max") {
-      log("Invalid value");
-      return;
-    }
+    // only things: # of keys setting to 'max', and disp = agg|each
+    // actually, don't worry about it... send anything... the apps will log
+    // if (value.toLowerCase() != "max" || value.toLowerCase() != "agg" || value.toLowerCase() != "each") {
+    //   log("Invalid value");
+    //   return;
+    // }
   }
   var topic = "pq-demo/" + who + "/" + cmd + "/" + value;
   // document.getElementById('ctrltopic').value = 'control-all';  // reset any per-client control back to main one
@@ -1446,16 +1447,19 @@ function getPartitionHtml(d) {
     var resp = '<table id="tabpart' + d.index + '" width="100%"><tr>';
     if (d.client) {
       // resp += '<td width="40%"><nobr>Partition ' + d.index + ': <span id="partsubnum'+d.index+'">Sub '+d.client+'</span></nobr></td>';
-      resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">Sub ' + d.client + '</span></nobr></td>';
+      // resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">Sub ' + d.client + '</span></nobr></td>';
+      resp += '<td width="30%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
     } else {
       // resp += '<td width="40%"><nobr>Partition ' + d.index + ': <span id="partsubnum'+d.index+'">No Sub</span></nobr></td>';
-      resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">No Sub</span></nobr></td>';
+      // resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">No Sub</span></nobr></td>';
+      resp += '<td width="30%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
     }
-    resp += '<td width="26%"><nobr>Depth: <span id="varpartdepth' + d.index + '">0</span></nobr></td>' +
-      '<td width="34%"><nobr>In/Egr: <span id="varpartingress' + d.index + '">0</span>/<span id="varpartegress' + d.index + '">0</span></nobr></td>' +
+    resp += '<td width="35%"><nobr>Depth: <span id="varpartdepth' + d.index + '">0</span></nobr></td>' +
+      '<td width="35%"><nobr>In/Egr: <span id="varpartingress' + d.index + '">0</span>/<span id="varpartegress' + d.index + '">0</span></nobr></td>' +
       '</tr></table>';
     return resp;
   } else {  // SEMP needs to be connected before this method runs!  Uh, this is only on ENTER, need to update sub names manually
+    return '<p>Partition ' + d.index + '</p>';
     if (subMap.get(d.client)) {
       return '<p>Partition ' + d.index + ' &ndash; <span id="partsubnum' + d.index + '">Sub ' + d.client + '</span></p>';
     } else {
