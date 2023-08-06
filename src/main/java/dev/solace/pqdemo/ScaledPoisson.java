@@ -73,7 +73,7 @@ public class ScaledPoisson {
 
 	public static void main(String... args) {
 
-		final int pdMeanMs = 10;
+		final int pdMeanMs = 100;
 
 //		System.out.println(new ScaledPoisson(pdMeanMs).getScaledPdMean());
 //		System.exit(0);
@@ -84,7 +84,7 @@ public class ScaledPoisson {
 //		final double actualPdValue2 = Math.pow(pdMeanMs, powValue2);
 //		final double scale2 = pdMeanMs / actualPdValue2;
 		
-		final int count = 5_000;
+		final int count = 10_000;
 		PoissonDistribution pd1 = new PoissonDistribution(1);  // much slower for large numbers, seems inversely proportional to PD size
 		PoissonDistribution pd2 = new PoissonDistribution(pdMeanMs);  // much slower for large numbers, seems inversely proportional to PD size
 //		PoissonDistribution pd3 = new PoissonDistribution(actualPdValue);  // much slower for large numbers, seems inversely proportional to PD size

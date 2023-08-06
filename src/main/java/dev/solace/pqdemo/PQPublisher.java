@@ -313,9 +313,9 @@ public class PQPublisher extends AbstractParentApp {
 		consumer.start();
 
 		// let's see if we're trying to override the keys
-		if (System.getProperty("force-key-set") != null) {
-			forcedKeySet = System.getProperty("force-key-set").split(",");
-			if (forcedKeySet != null || forcedKeySet.length == 0) {
+		if (System.getProperty("forcedKeySet") != null) {
+			forcedKeySet = System.getProperty("forcedKeySet").split(",");
+			if (forcedKeySet == null || forcedKeySet.length == 0) {
 				logger.warn("Forced keys length == 0.  Ignoring.");
 				forcedKeySet = null;
 			} else {
@@ -328,8 +328,7 @@ public class PQPublisher extends AbstractParentApp {
 				}
 				if (forcedKeySet != null) {  // success!
 					stateMap.put(Command.KEYS, forcedKeySet.length);
-					logger.warn("Success!  Using " + forcedKeySet.length + " specified keys");
-					logger.warn(Arrays.toString(forcedKeySet));
+					logger.warn("Detected " + forcedKeySet.length + " spcified keys!  Using: " + Arrays.toString(forcedKeySet));
 				}
 			}
 		}
@@ -339,11 +338,6 @@ public class PQPublisher extends AbstractParentApp {
 
 		// Ready to start the application, just subscriptions
 		injectSubscriptions();
-//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
-//        addCustomSubscription("pq-demo/control-all/>");
-//        addCustomSubscription("POST/pq-demo/control-all/>");
-//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
-//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
         
 		singleThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;  // shutting down
@@ -488,7 +482,7 @@ public class PQPublisher extends AbstractParentApp {
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
 					queueResendMsg(futureMsg);
 					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
-					String logEntry = String.format("(%s) Pub [key, seq]: " + inner + ", resend in %dms",
+					String logEntry = String.format("%s sending [key, seq]: " + inner + ", resend in %dms",
 							myName, pqKey, seqNo, msecDelay);
 					if (stateMap.get(Command.DISP).equals("each")) {
 						logger.debug(logEntry);
@@ -497,7 +491,7 @@ public class PQPublisher extends AbstractParentApp {
 					}
 				} else {
 					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
-					String logEntry = String.format("(%s) Sending [key, seq]: " + inner, myName, pqKey, seqNo);
+					String logEntry = String.format("%s sending [key, seq]: " + inner, myName, pqKey, seqNo);
 					if (stateMap.get(Command.DISP).equals("each")) {
 						logger.debug(logEntry);
 					} else {

@@ -92,7 +92,7 @@ public class Sequencer {
 					lastSeqNumSeen = 0;  // reset
 					return new SequenceInsertStatus(Status.NO_OC, 0, 0, false);
 				}
-				if (trackMissing) {  // the OrderChecker tracks missing messages, but the Subscribers do not
+				if (isOrderTracker) {  // the OrderChecker tracks missing messages, but the Subscribers do not
 					if (missing != null) {  // if it's been initialized, then at least one message on this key has been missing
 						missing.remove(seqNum);  // just try to remove, I don't care if we actually contain it or not right now...
 						if (missing.isEmpty()) keysWithGaps.remove(myKey);
@@ -111,7 +111,7 @@ public class Sequencer {
 				if (seqNum <= lastSeqNumSeen) {  // REWIND hopefully this is a redelivery!  ( == same is a rewind by 1)
 					return new SequenceInsertStatus(Status.REWIND, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
 				} else {  // JUMP!
-					if (trackMissing) {
+					if (isOrderTracker) {
 						// make sure that the missing Set has been initialized
 						if (missing == null) missing = new LinkedHashSet<>();
 						for (int i=lastSeqNumSeen; i<seqNum; i++) {  // we're jumping, so see what we've missed
@@ -127,7 +127,7 @@ public class Sequencer {
 			
 			/** Helper method to just print nice ranges of ints: 3,4,5,8,9 -> 3-5, 8-9 */
 			private String toStringMissingRanged() {
-				if (!trackMissing || missing == null || missing.size() == 0) return "";
+				if (!isOrderTracker || missing == null || missing.size() == 0) return "";
 				// if we've previously set the threshold (say to 10), then return just the count until the # of missing falls below
 				if (missing.size() >= missingCountThreshold) return " missing " +  missing.size() + "+ seqNums";
 				else missingCountThreshold = Integer.MAX_VALUE;  // else, reset the threshold (or leave it the same)
@@ -168,7 +168,7 @@ public class Sequencer {
 		
 		// Next inner class, this maintains keys-per-queue
 
-		private final String queue;
+		private final String queue;  // each sub has the queue name in its name now, so this is not as important, was originally in logging statement
 	    private Map<String,PerKeySequence> keysToSeqsMap = new HashMap<>();
 	    private Set<String> keysWithGaps = new LinkedHashSet<>();
 		
@@ -198,8 +198,8 @@ public class Sequencer {
 			    	red++;  // increment our counter
 			    }
 			    // this is my fancy log statement print-out
-				String inner = String.format("(%s) q:%s, key:%%%ds, got:%%%dd, exp:%%%dd, %%3s, prev:%%s  %%s%%s%s%%s%%s",
-						sub, queue, maxLengthKey, maxLengthSeqNo, maxLengthSeqNo, redStr);
+				String inner = String.format("%s key:%%%ds, got:%%%dd, exp:%%%dd, %%3s, prev:%%s  %%s%%s%s%%s%%s",
+						isOrderTracker ? "OC: " + sub : sub, maxLengthKey, maxLengthSeqNo, maxLengthSeqNo, redStr);
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 1, got: 1, -- , prev:✔   OK
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 2, got: 3,  +2, prev:❌  JUMP missing 1: [2]
 				// (sub-AVQY) q:nonex, key:EG-43a7b975, exp: 4, got: 2,  -2, prev:✔   REWIND ⚠ DIFFSUB
@@ -232,7 +232,7 @@ public class Sequencer {
 	                            if (seqStatus.numDupes > 0) {  // duplicate message, but no redelivered flag?
 	                                logger.info(logEntry);  // log it
 	                            } else {  // this is the super normal path
-	                                if (perKeySeq.missing != null && !perKeySeq.missing.isEmpty()) {  // will always be empty if trackMissing==false
+	                                if (perKeySeq.missing != null && !perKeySeq.missing.isEmpty()) {  // will always be empty if isOrderTracker==false
 	                                    logger.warn(logEntry);  // log it at WARN if there are some missing seqNums on this key
 	                                } else if (showEach) {
 	                                    logger.debug(logEntry);  // show each message, log at debug
@@ -255,7 +255,7 @@ public class Sequencer {
 			    				if (prev) {  // at least we've seen the key before this, so maybe not all bad
 			    					logger.info(logEntry);
 			    				} else {
-			    					if (redeliveredFlag || !trackMissing) {
+			    					if (redeliveredFlag || !isOrderTracker) {
 			    						logger.warn(logEntry);  // gap! but this is normal for subscribers to see that take over another flow of messages
 			    					} else {
 			    						logger.error(logEntry);  // gap!
@@ -284,7 +284,7 @@ public class Sequencer {
 			//     			if (seqStatus.numDupes > 0) {  // log it
 	        //                     logger.info(logEntry);
 			//     			} else {  // this is the super normal path
-			//             		if (showEach || !pkSeq.missing.isEmpty()) {  // will always be empty if trackMissing==false
+			//             		if (showEach || !pkSeq.missing.isEmpty()) {  // will always be empty if isOrderTracker==false
 	        //                         logger.info(logEntry);  // log it at INFO if disp=each, or there are some missing seqNums on this key
 	        //                     } else {
 			//     					logger.debug(logEntry);  // keep it quiet..!
@@ -356,14 +356,10 @@ public class Sequencer {
 	
 	private Map<String, PerQueueSequence> queuesToPqKeysSeqNumsMap = new HashMap<>();
 
-//	private Map<String, Map<String,PerKeySequence>> queuesToPqKeysToSeqNumsMap = new HashMap<>();
-//    private Map<String,PerKeySequence> keysToSeqsMap = new HashMap<>();
-//    private Map<String,Set<String>> queuesWithKeysWithGaps = new HashMap<>();//LinkedHashSet<>();
-//    private Set<String> keysWithGaps = new LinkedHashSet<>();
-    private int maxLengthSeqNo = 1;
+	private int maxLengthSeqNo = 1;
     private int maxLengthKey = 1;
-    volatile boolean showEach = true;  // starting values
-    private volatile boolean isEnabled = false;  // are we tracking stats?
+    volatile boolean showEach = true;  // starting values.  OC and Sub will change this based on DISP value
+    private volatile boolean isEnabled = false;  // are we tracking stats?  when PROB > 0, the OC or Sub will enable this
 
     private volatile int totalKeysSeen = 0;  // rather than querying each map for their size
     
@@ -375,18 +371,16 @@ public class Sequencer {
     private volatile int gaps = 0;   // means there is no previous seq num for this key
     
     private static final Logger logger = LogManager.getLogger(Sequencer.class);
-    private final boolean trackMissing;  // only backend Order should track missing, b/c subscribers will often have gaps (due to failover, or non-ex queues)
+    private final boolean isOrderTracker;  // only backend Order should track missing, b/c subscribers will often have gaps (due to failover, or non-ex queues)
     
     /** Only the OrderChecker tracks missing sequence numbers, because the subscribers could have 1000s with regular non-ex queues */
-    public Sequencer(boolean trackMissing) {
-    	this.trackMissing = trackMissing;
+    public Sequencer(boolean isOrderTracker) {
+    	this.isOrderTracker = isOrderTracker;
     }
 
     void stopCheckingSequenceNums() {  // on all queues?
     	isEnabled = false;
     	queuesToPqKeysSeqNumsMap.clear();  // will end up GC'ing all of the data b/c nothing else is holding onto it
-//		keysToSeqsMap.clear();
-//		keysWithGaps.clear();
 		
 		maxLengthKey = 1;
 		maxLengthSeqNo = 1;
@@ -405,7 +399,7 @@ public class Sequencer {
     	map.put("red", red);
     	map.put("oos", oos);
     	map.put("gaps", gaps);
-    	if (trackMissing) {
+    	if (isOrderTracker) {
     		// there could be some race conditions here..!  since this would be getting queried from a different thread than is inserting!
     		int missingCount = 0;
     		int keysWithGaps = 0;

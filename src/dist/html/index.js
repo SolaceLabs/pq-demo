@@ -901,7 +901,7 @@ function log(logEntry) {
 }
 
 function err(logEntry) {
-  console.err(getTs() + logEntry);
+  console.error(getTs() + logEntry);
 }
 
 function getTs() {
@@ -1803,6 +1803,8 @@ function getQueueDetails(sempRequestPossiblyPaged) {
         for (let i=0; i<json.data.length; i++) {
           if (json.data[i].partitionClientName) {
             partitionMap.get("" + json.data[i].partitionNumber).client = json.data[i].partitionClientName;
+          } else {
+            partitionMap.get("" + json.data[i].partitionNumber).client = null;
           }
         }
       }

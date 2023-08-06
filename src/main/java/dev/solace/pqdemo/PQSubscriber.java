@@ -218,7 +218,8 @@ public class PQSubscriber extends AbstractParentApp {
 				@Override
 				public void handleEvent(Object source, FlowEventArgs event) {
 					// Flow events are usually: active, reconnecting (i.e. unbound), reconnected, active
-					logger.info("### Received a Flow event: " + event);
+					logger.info("### Received a Flow event: " + event.getEvent().name());
+					logger.trace(event.toString());
 					currentFlowStatus = event.getEvent().name();
 					sendDirectMsg("pq-demo/event/" + event.getEvent().name() + "/" + session.getProperty(JCSMPProperties.CLIENT_NAME));
 					// try disabling and re-enabling the queue to see in action
