@@ -358,10 +358,10 @@ public class PQSubscriber extends AbstractParentApp {
 				// Therefore, DO NOT ACK until all processing/storing of this message is complete.
 				// NOTE that messages can be acknowledged from a different thread.
 				// ideally, we should do "processing" in a different thread with a LinkedBlockingQueue, and using flow control (e.g. stop()) when the queue is a certain size to prevent getting overloaded
-//					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
-//							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
-				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
-						queueNameSimple, myName, pqKey, msgSeqNum);
+					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
+							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+//				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
+//						queueNameSimple, myName, pqKey, msgSeqNum);
 				sendGuaranteedProctMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
 				// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
 				// that would be the PROPER way, but this is just a silly demo

@@ -233,7 +233,7 @@ public class Sequencer {
 	                                logger.info(logEntry);  // log it
 	                            } else {  // this is the super normal path
 	                                if (perKeySeq.missing != null && !perKeySeq.missing.isEmpty()) {  // will always be empty if trackMissing==false
-	                                    logger.info(logEntry);  // log it at INFO if there are some missing seqNums on this key
+	                                    logger.warn(logEntry);  // log it at WARN if there are some missing seqNums on this key
 	                                } else if (showEach) {
 	                                    logger.debug(logEntry);  // show each message, log at debug
 	                                } else {

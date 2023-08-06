@@ -219,7 +219,7 @@ function onMessage(topic, message) {  // string, Buffer
         case "CLIENT_CLIENT_CONNECT":
         case "CLIENT_CLIENT_NAME_CHANGE": {
           var clientName = payloadWords[6];
-          if (clientName.indexOf("pq/sub") == 0 || subMap.has(clientName)) {
+          if (clientName.indexOf("pq/sub-"+queueObj.simpleName) == 0 || subMap.has(clientName)) {
             if (!subMap.has(clientName)) {  // new guy
               var newSub = getBlankClient();
               newSub.name = clientName;
@@ -334,10 +334,9 @@ function onMessage(topic, message) {  // string, Buffer
           } else if (clientName.indexOf("pq/sub") == 0) {  // wrong queue
             if (!subMap.has(clientName)) {
               log("Ignoring client " + clientName + " who has bound to wrong queue: " + queueName);
-            } else {  // it's already there, need update
-              subMap.get(clientName).bound = "wrong";
-              updateSubStatus(subMap.get(clientName));
-              // updateSubsPos();
+            // } else {  // it's already there, need update
+            //   subMap.get(clientName).bound = "wrong";
+            //   updateSubStatus(subMap.get(clientName));
             }
           }
           break;
@@ -548,13 +547,12 @@ function onMessage(topic, message) {  // string, Buffer
       d3.select('#uses-box').style('visibility', 'hidden');
       d3.select('#ctrl-box').style('visibility', 'visible');
       // console.log(clientName);
-      if (clientName.indexOf("pq/sub") == 0) {
+      if (clientName.indexOf("pq/sub-"+queueObj.simpleName) == 0) {
         if (!ctrlSet.has(clientName)) {
           d3.select('#uses-box').style('visibility', 'hidden');  // at least one pub, so hide the text
           ctrlSet.add(clientName);
           updateCtrlList();
         }
-        // ignore SUBS for now, they have to quit and reconnect for us to get proper info
         if (!subMap.has(clientName)) { // && payload.queueName == queueObj.name) {
           // allow him for now
           // return;  // ignore this!  we can't have previously connected guys appearing b/c we won't know their partitions (unless SEMP is active?) (too much work!)
@@ -1684,7 +1682,7 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
         d3.select('#colsubslow' + client.index).style('color', '#000000').style('font-weight', 'normal');
       } else {
         d3.select('#varsubslow' + client.index).style('font-weight', 'bold');
-        if (client.slow > 50) {
+        if (client.slow >= 50) {
           d3.select('#colsubslow' + client.index).style('color', '#880000').style('font-weight', 'bold');
         } else {
           d3.select('#colsubslow' + client.index).style('color', '#000000').style('font-weight', 'normal');
@@ -1797,7 +1795,7 @@ function getQueueDetails(sempRequestPossiblyPaged) {
   })
     .then(response => response.json())
     .then(json => {
-      console.log(json);
+      // console.log(json);
       // now, this response will either contain the info we want, or we might have to ask a 2nd timd following the paging cookie
       if (json.data && json.data.length > 0) {  // good! this response has data
         var pqName = json.data[0].queueName
@@ -2203,7 +2201,12 @@ params = params.split('&'); // first element of split
 params.forEach(p => {
   var blah = p.split('=');
   switch (blah[0]) {
-    case 'queue': props.queue = blah[1]; queueObj.name = props.queue; document.getElementById("acl").value = queueObj.name + "/>"; break;
+    case 'queue':
+      props.queue = blah[1];
+      queueObj.name = props.queue;
+      queueObj.simpleName = queueObj.name.replaceAll("[^a-zA-Z0-9]", "_");
+      document.getElementById("acl").value = queueObj.name + "/>";
+      break;
     case 'mqttUrl': props.mqttUrl = blah[1]; break;
     case 'user': props.user = blah[1]; break;
     case 'pw': props.pw = blah[1]; break;

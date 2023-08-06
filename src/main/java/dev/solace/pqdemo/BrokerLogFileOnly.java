@@ -14,6 +14,7 @@ public class BrokerLogFileOnly {
     
     public static void log(BytesXMLMessage message) {
     	String payload = new String(((BytesMessage)message).getData(), StandardCharsets.UTF_8);
+    	if (payload.charAt(payload.length()-1) == 0) payload = payload.substring(0, payload.length()-1);
     	logger.info("BROKER LOG: " + payload);
     }
 	
