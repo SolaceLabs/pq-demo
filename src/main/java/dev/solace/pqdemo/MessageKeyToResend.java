@@ -22,13 +22,13 @@ import com.solacesystems.jcsmp.XMLMessage.MessageUserPropertyConstants;
 
 public class MessageKeyToResend implements Comparable<MessageKeyToResend> {
 
-	final int pqKeyInt;
+	final String pqKey;
 	final int seqNo;
 	final long timeToSendNs;
 	final boolean wasNack;
 	
-	MessageKeyToResend(int pqKeyInt, int seqNo, long timeToSendMs) {
-		this.pqKeyInt = pqKeyInt;
+	MessageKeyToResend(String pqKey, int seqNo, long timeToSendMs) {
+		this.pqKey = pqKey;
 		this.seqNo = seqNo;
 		this.timeToSendNs = timeToSendMs;
 		this.wasNack = false;
@@ -43,7 +43,8 @@ public class MessageKeyToResend implements Comparable<MessageKeyToResend> {
 		try {
 			key = origMsg.getProperties().getString(MessageUserPropertyConstants.QUEUE_PARTITION_KEY);
 			// key == Xb-8a3b
-			pqKeyInt = Integer.parseInt(key.substring(key.indexOf('-')+1), 16);  // parse out the key int
+//			pqKeyInt = Integer.parseInt(key.substring(key.indexOf('-')+1), 16);  // parse out the key int
+			pqKey = key;
 			seqNo = origMsg.getSequenceNumber().intValue();
 //			timeToSendNs = origMsg.getSenderTimestamp();
 			timeToSendNs = origMsg.getProperties().getLong("origNsTs");
@@ -63,10 +64,10 @@ public class MessageKeyToResend implements Comparable<MessageKeyToResend> {
 	public boolean sameAs(BytesXMLMessage msg) {
 		try {
 			String key = msg.getProperties().getString(MessageUserPropertyConstants.QUEUE_PARTITION_KEY);
-			int msgPqKeyInt = Integer.parseInt(key.substring(key.indexOf('-')+1), 16);  // parse out the key int
+//			int msgPqKeyInt = Integer.parseInt(key.substring(key.indexOf('-')+1), 16);  // parse out the key int
 			int msgSeqNo = msg.getSequenceNumber().intValue();
 			long msgTimeToSendNs = msg.getProperties().getLong("origNsTs");
-			return this.pqKeyInt == msgPqKeyInt && this.seqNo == msgSeqNo && this.timeToSendNs == msgTimeToSendNs;
+			return this.pqKey.equals(key) && this.seqNo == msgSeqNo && this.timeToSendNs == msgTimeToSendNs;
 		} catch (SDTException e) {
 			return false;
 		}
@@ -74,7 +75,8 @@ public class MessageKeyToResend implements Comparable<MessageKeyToResend> {
 
 	@Override
 	public String toString() {
-		return String.format("[%s,%d]", Integer.toHexString(pqKeyInt), seqNo);
+//		return String.format("[%s,%d]", Integer.toHexString(pqKeyInt), seqNo);
+		return String.format("[%s,%d]", pqKey, seqNo);
 	}
 	
 	@Override
@@ -82,29 +84,19 @@ public class MessageKeyToResend implements Comparable<MessageKeyToResend> {
         if (o == null || !(o instanceof MessageKeyToResend))
             return false;
         MessageKeyToResend msg = (MessageKeyToResend)o;
-//        return pqKey.equals(msg.pqKey) && seqNo == msg.seqNo && timeToSendNs == msg.timeToSendNs;
-        return pqKeyInt == msg.pqKeyInt && seqNo == msg.seqNo && timeToSendNs == msg.timeToSendNs;
+        return pqKey.equals(msg.pqKey) && seqNo == msg.seqNo && timeToSendNs == msg.timeToSendNs;
+//        return pqKeyInt == msg.pqKeyInt && seqNo == msg.seqNo && timeToSendNs == msg.timeToSendNs;
 	}
 	
 	@Override
 	public int hashCode() {
-//		return pqKey.hashCode() ^ seqNo ^ (int)(timeToSendNs & 0x0000ffff);
-		return pqKeyInt ^ seqNo ^ (int)(timeToSendNs & 0x0000ffff);
+		return pqKey.hashCode() ^ seqNo ^ (int)(timeToSendNs & 0x0000ffff);
+//		return pqKeyInt ^ seqNo ^ (int)(timeToSendNs & 0x0000ffff);
 	}
 
+	/** Sort by timestamp */
 	@Override
 	public int compareTo(MessageKeyToResend msg) {
 		return Long.compare(this.timeToSendNs, msg.timeToSendNs);
 	}
-	
-	
-	
-	
-	public static void main(String... args) {
-	}
-	
-	
-	
-	
-	
 }

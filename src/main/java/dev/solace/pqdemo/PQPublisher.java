@@ -71,9 +71,9 @@ public class PQPublisher extends AbstractParentApp {
 	private static volatile boolean isPaused = false;
 	private static volatile ScaledPoisson delayMsecPoissonDist = new ScaledPoisson((Integer)Command.DELAY.defaultVal);  // starting value
 
-	private static Map<Integer, AtomicInteger> allKeysNextSeqNoMap = new HashMap<>();
+	private static Map<String, AtomicInteger> allKeysNextSeqNoMap = new HashMap<>();  // all keys, what's my seqNum
 	private static PriorityQueue<MessageKeyToResend> timeSortedQueueOfResendMsgs = new PriorityQueue<>();  // sorted on timestamp
-	private static Map<Integer, MessageKeyToResend> pqkeyResendMsgsMap = new HashMap<>();  // key'd by key
+	private static Map<String, MessageKeyToResend> pqkeyResendMsgsMap = new HashMap<>();  // key'd by key
 	private static BlockingQueue<MessageKeyToResend> nackedMsgsToRequeue = new ArrayBlockingQueue<>(300);  // max pub win is 255
 	
 	final static Random r = new Random();
@@ -101,7 +101,7 @@ public class PQPublisher extends AbstractParentApp {
 		// need to keep a sorted list of message by time, but also a map of keys in case we happen to pick this key again
 		boolean success = timeSortedQueueOfResendMsgs.add(futureMsg);
 		assert success;
-		Object o = pqkeyResendMsgsMap.put(futureMsg.pqKeyInt, futureMsg);
+		Object o = pqkeyResendMsgsMap.put(futureMsg.pqKey, futureMsg);
 		assert o == null;
 	}
 
@@ -113,24 +113,27 @@ public class PQPublisher extends AbstractParentApp {
 //	}
 
 	
-	private static int[] forcedKeySet = null;  // this is updated with a System variable
+	private static String[] forcedKeySet = null;  // this is updated with a System variable
 	
-	private static int buildPartitionKey() {
+	private static String buildPartitionKey() {
 		if (forcedKeySet != null) {
 			return forcedKeySet[r.nextInt(forcedKeySet.length)];
 		}
-		return r.nextInt((Integer)stateMap.get(Command.KEYS));
+		return new StringBuilder(nick)
+				.append('-')
+				.append(Integer.toHexString(r.nextInt((Integer)stateMap.get(Command.KEYS))))
+				.toString();
 //		return nick + "-" + Integer.toString(num, 16);
 		//		return Integer.toString((int)(Math.random() * keySpaceSize));
 		//		return UUID.randomUUID().toString();
 	}
 
-	private static String buildPqKeyString(int pqKey) {
-		if (forcedKeySet != null) {
-			return Integer.toString(pqKey);  // not hex, not just a regular integer
-		}
-		return nick + "-" + Integer.toHexString(pqKey);
-	}
+//	private static String buildPqKeyString(int pqKey) {
+//		if (forcedKeySet != null) {
+//			return Integer.toString(pqKey);  // not hex, not just a regular integer
+//		}
+//		return nick + "-" + Integer.toHexString(pqKey);
+//	}
 
 	
 	// call this from main thread to avoid any potential threading/concurrency issues accessing shared objects
@@ -156,9 +159,15 @@ public class PQPublisher extends AbstractParentApp {
 	/** call this after stateMap has changed, called from API callback thread though
 	 * @param updated */
 	static void updateVars(EnumSet<Command> updated) {
-		if (updated.contains(Command.KEYS) && forcedKeySet != null) {
-			logger.warn("Ignoring KEYS Command, using forced set of keys from command line");
-			stateMap.put(Command.KEYS, forcedKeySet.length);
+		if (updated.contains(Command.KEYS)) {
+			if (forcedKeySet != null) {
+				logger.warn("Ignoring KEYS Command, using forced set of keys from command line");
+				stateMap.put(Command.KEYS, forcedKeySet.length);
+			} else {
+				// ideally this should only be when lowering
+				logger.info("Change in number of keys, blanking the resendQ");
+				blankTheResendQ = true;
+			}
 		}
 		if (updated.contains(Command.PAUSE)) {
 			logger.info((isPaused ? "Unpausing" : "Pausing") + " publishing...");
@@ -175,6 +184,7 @@ public class PQPublisher extends AbstractParentApp {
 				blankTheSeqNosFlag = true;
 			} else {  // changing the probability, let's blank the resendQ
 				logger.info("Change in republish probability, blanking the resendQ");
+				// ideally, only when lowering the probability
 				blankTheResendQ = true;
 			}
 		}
@@ -183,6 +193,7 @@ public class PQPublisher extends AbstractParentApp {
 				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
 			}
 			logger.info("Change in republish delay, blanking the resendQ");
+			// ideally, only when shortening the delay
 			blankTheResendQ = true;
 		}
 	}
@@ -303,20 +314,23 @@ public class PQPublisher extends AbstractParentApp {
 
 		// let's see if we're trying to override the keys
 		if (System.getProperty("force-key-set") != null) {
-			logger.warn("We have a custom set of keys to use! Hopefully they're all integers..!");
-			String keys[] = System.getProperty("force-key-set").split(",");
-			logger.warn(Arrays.toString(keys));
-			forcedKeySet = new int[keys.length];
-			try {
-				if (keys.length == 0) throw new NumberFormatException();  // need at least one key!
-				for (int i=0; i<keys.length; i++) {
-					forcedKeySet[i] = Integer.parseInt(keys[i]);
+			forcedKeySet = System.getProperty("force-key-set").split(",");
+			if (forcedKeySet != null || forcedKeySet.length == 0) {
+				logger.warn("Forced keys length == 0.  Ignoring.");
+				forcedKeySet = null;
+			} else {
+				for (int i=0; i < forcedKeySet.length; i++) {
+					if (forcedKeySet[i].isEmpty()) {
+						logger.warn("Invalid forced key at index " + i + ".  Ignoring keys.");
+						forcedKeySet = null;  // invalidate
+						break;
+					}
 				}
-				stateMap.put(Command.KEYS, forcedKeySet.length);
-				logger.warn("Success!  Using " + forcedKeySet.length + " specified keys");
-			} catch (NumberFormatException e) {
-				logger.error("Could not parse forced key set, ensure that everything is a regular base10 integer");
-				forcedKeySet = null;  // put back to normal
+				if (forcedKeySet != null) {  // success!
+					stateMap.put(Command.KEYS, forcedKeySet.length);
+					logger.warn("Success!  Using " + forcedKeySet.length + " specified keys");
+					logger.warn(Arrays.toString(forcedKeySet));
+				}
 			}
 		}
 
@@ -374,7 +388,8 @@ public class PQPublisher extends AbstractParentApp {
 //			next = System.nanoTime() + (1_000_000_000L / (Integer)stateMap.get(Command.RATE));  // time to send next message in nanos
 			if (!isPaused) {  // otherwise, skip this whole block and just sleep later
 				final long nanoTime = System.nanoTime();  // the time right now!
-				int pqKey = -1;  // Partition Queue key for this message
+//				int pqKey = -1;  // Partition Queue key for this message
+				String pqKey = null;  // Partition Queue key for this message
 				int seqNo = -1;  // uninitialized value, will verify this has been set later...
 				// default starting sequenced number (if we have keys to "resend" this will increase)
 				MessageKeyToResend m = null;
@@ -385,8 +400,8 @@ public class PQPublisher extends AbstractParentApp {
 					if (!timeSortedQueueOfResendMsgs.isEmpty() && timeSortedQueueOfResendMsgs.peek().timeToSendNs < nanoTime) {  // this message should be sent by now...
 					    m = timeSortedQueueOfResendMsgs.poll();  // pop it off the queue
 					    assert m != null;
-					    assert pqkeyResendMsgsMap.containsKey(m.pqKeyInt);
-					    pqkeyResendMsgsMap.remove(m.pqKeyInt);
+					    assert pqkeyResendMsgsMap.containsKey(m.pqKey);
+					    pqkeyResendMsgsMap.remove(m.pqKey);
 					    // even if this key is too big for current keyspace size, send anyway and then force no resend queueing
 //					    if (m.seqNo >= (Integer)stateMap.get(Command.KEYS)) {  // this key too big, must have reduced the key space size
 //					    	System.out.println("NOPE!  key too big, throwing away");
@@ -421,10 +436,11 @@ public class PQPublisher extends AbstractParentApp {
 						}
 					}
 				} else {  // use our resend message, either from a NACK or from teh resend queue
-					pqKey = m.pqKeyInt;
+					pqKey = m.pqKey;
 					seqNo = m.seqNo;
 				}
-				assert pqKey >= 0;
+//				assert pqKey >= 0;
+				assert pqKey != null;
 				assert seqNo >= 0;
 				if ((m == null || !m.wasNack) && (Double)stateMap.get(Command.PROB) > 0) {  // means sequencing is on!
 //					allKeysNextSeqNoMap.put(pqKey, seqNo + 1);  // add/overwrite in the next sequence number in the map
@@ -432,7 +448,7 @@ public class PQPublisher extends AbstractParentApp {
 					if (i == null) allKeysNextSeqNoMap.put(pqKey, new AtomicInteger(seqNo + 1));  // should be putting in 1!
 					else i.incrementAndGet();
 				}
-				final String pqKeyString = buildPqKeyString(pqKey);
+//				final String pqKeyString = buildPqKeyString(pqKey);
 	
 				// now let's make our SMF message ready for publishing...
 //				message.reset();  // ready for reuse
@@ -448,7 +464,7 @@ public class PQPublisher extends AbstractParentApp {
 				}
 				// next the partition key...
 				SDTMap map = JCSMPFactory.onlyInstance().createMap();
-				map.putString(MessageUserPropertyConstants.QUEUE_PARTITION_KEY, pqKeyString);
+				map.putString(MessageUserPropertyConstants.QUEUE_PARTITION_KEY, pqKey);
 				//            map.putString("JMSXGroupID", pqKeyString);   // aka
 				map.putLong("origNsTs", nanoTime);  // what time this message was supposed to go out, useful later when resending NACKs
 				// not that this is not millis since epoch, this nanoTime() is only useful here in the publisher
@@ -457,12 +473,12 @@ public class PQPublisher extends AbstractParentApp {
 				message.setCorrelationKey(message);  // used for ACK/NACK correlation locally here within the publisher app
 				message.setElidingEligible(true);  // why not?
 				Topic topic = JCSMPFactory.onlyInstance().createTopic(topicString);
-				maxLengthKey = Math.max(maxLengthKey, pqKeyString.length());  // this is just for pretty-printing on console
+				maxLengthKey = Math.max(maxLengthKey, pqKey.length());  // this is just for pretty-printing on console
 				maxLengthSeqNo = Math.max(maxLengthSeqNo, Integer.toString(seqNo).length());  // this is just for pretty-printing on console
 	
 				if ((m == null || !m.wasNack)  // if the message I'm sending was a NACK (i.e. I'm trying to republish it) don't do the probability sequence thing...
-						&& r.nextFloat() < (Double)stateMap.get(Command.PROB)  // so not a NACK, and our random number is good for probability
-						&& (forcedKeySet != null || pqKey < (Integer)stateMap.get(Command.KEYS))) {  // and this key is still in range, or we're using a forced keyset
+						&& r.nextFloat() < (Double)stateMap.get(Command.PROB)) {  // so not a NACK, and our random number is good for probability
+						//&& (forcedKeySet != null || pqKey < (Integer)stateMap.get(Command.KEYS))) {  // and this key is still in range, or we're using a forced keyset
 					// means there will be another message following!
 					// need to "re-queue" this sequenced message later for sending again, the next sequence...
 					// don't requeue if the keyspace is smaller now, and this key is too big...
@@ -472,8 +488,8 @@ public class PQPublisher extends AbstractParentApp {
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
 					queueResendMsg(futureMsg);
 					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
-					String logEntry = String.format("(%s) Sending [key, seq]: " + inner + ", resend in %dms",
-							myName, pqKeyString, seqNo, msecDelay);
+					String logEntry = String.format("(%s) Pub [key, seq]: " + inner + ", resend in %dms",
+							myName, pqKey, seqNo, msecDelay);
 					if (stateMap.get(Command.DISP).equals("each")) {
 						logger.debug(logEntry);
 					} else {
@@ -481,7 +497,7 @@ public class PQPublisher extends AbstractParentApp {
 					}
 				} else {
 					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
-					String logEntry = String.format("(%s) Sending [key, seq]: " + inner, myName, pqKeyString, seqNo);
+					String logEntry = String.format("(%s) Sending [key, seq]: " + inner, myName, pqKey, seqNo);
 					if (stateMap.get(Command.DISP).equals("each")) {
 						logger.debug(logEntry);
 					} else {
@@ -506,9 +522,6 @@ public class PQPublisher extends AbstractParentApp {
 			int nanos = Math.max(0, (int)(delta) % 1_000_000);
 			Thread.sleep(millis, nanos);
 			if (delta < -50_000_000) {  // 50 ms too late, we're too slow!
-//				int rate = (int)stateMap.get(Command.RATE);
-//				logger.warn("### Publish rate too high, loop taking too long, reducing rate by 1: " + rate + " -> " + (rate-1));
-//				stateMap.put(Command.RATE, rate-1);
 				next = now;  // reset when we're supposed to send the next message
 			}
 		   if (System.in.available() > 0) {

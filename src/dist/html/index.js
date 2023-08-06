@@ -1741,8 +1741,8 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
             bodyFlash = true;
           }
         } else {  // regular color, slightly plusing to show that it's receiving stats updates
-          bgColor = oc.connected ? [0xd0, 0xff, 0xd0] : [0xff, 0xdd, 0xdd];
-          // bgColor = oc.connected ? [0xe6, 0xff, 0xe6] : [0xff, 0xdd, 0xdd];
+          // bgColor = oc.connected ? [0xd0, 0xff, 0xd0] : [0xff, 0xdd, 0xdd];
+          // NO bgColor = oc.connected ? [0xe6, 0xff, 0xe6] : [0xff, 0xdd, 0xdd];
         }
         // let's set teh background color of my thing
         d3.select('#oc1').datum(oc).transition(t2).styleTween("background", function (d) {

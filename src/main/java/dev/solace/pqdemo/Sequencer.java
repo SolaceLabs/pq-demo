@@ -202,7 +202,7 @@ public class Sequencer {
 						sub, queue, maxLengthKey, maxLengthSeqNo, maxLengthSeqNo, redStr);
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 1, got: 1, -- , prev:✔   OK
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 2, got: 3,  +2, prev:❌  JUMP missing 1: [2]
-				// (sub-AVQY) q:nonex, key:EG-43a7b975, exp: 4, got: 2,  -2, prev:✔   REWIND ⚠ DIFFSUB				
+				// (sub-AVQY) q:nonex, key:EG-43a7b975, exp: 4, got: 2,  -2, prev:✔   REWIND ⚠ DIFFSUB
 				PerKeySequence perKeySeq = keysToSeqsMap.get(pqKey);  // do we have a sequence for this key?
 			    if (isEnabled && perKeySeq != null) {
 			    	// we've seen this key before, so let's insert the update and see what happens...
