@@ -89,7 +89,7 @@ public enum Command {
 		}
 		System.out.println();
 		System.out.println("Use REST Messaging! E.g. curl -X POST http://localhost:9000/pq-demo/control-all/rate/100");
-		System.out.println("Use per-client topic with \"-name\" for individual control: 'pq-demo/control-8312/slow/10'");
+		System.out.println("Use per-client topic with \"-name\" for individual control: 'pq-demo/control-sub-pq12-8312/slow/10'");
 		System.out.println("Also, can force state with JSON payload:");
 		System.out.println("  curl http://localhost:9000/pq-demo/state/force -d '{\"PROB\":0.5,\"DISP\":\"agg\",\"RATE\":100,\"KEYS\":256}'");
 		System.out.println();
