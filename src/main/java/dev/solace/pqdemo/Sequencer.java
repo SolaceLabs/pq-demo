@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 public class Sequencer {
 
 	enum Status {
-		OK,
+		OK,  // as expected, seqNum is 1 more than previous
 		JUMP,
 		REWIND,
 		NO_OC,  // no order checking
@@ -258,7 +258,7 @@ public class Sequencer {
 			    					if (redeliveredFlag || !isOrderTracker) {
 			    						logger.warn(logEntry);  // gap! but this is normal for subscribers to see that take over another flow of messages
 			    					} else {
-			    						logger.error(logEntry);  // gap!
+			    						logger.error(logEntry + " GAP");  // gap!
 			    					}
 			    				}
 			    			}
@@ -269,7 +269,7 @@ public class Sequencer {
 			    				logger.info(logEntry);
 							} else {
 								oos++;
-								logger.error(logEntry);
+								logger.error(logEntry + " GAP");
 							}
 							break;
 			    		default:
