@@ -13,7 +13,7 @@ This demo is meant to demonstrate a number of things:
 - Guaranteed messaging for all keyed and sequenced data going through the specified queue
 - Direct messaging for all stats updates, control messages, and events
 - MQTT websockets for the JavaScript dashboard
-- 
+- more here
 
 
 
@@ -36,7 +36,7 @@ verify the overall/global order of the data being put out.  This is simulating a
 - **StatefulControl**: an optional utility that listens to all Control topics and maintains the current demo configuration state.  This allows "late joiners" or applications that connect later to find out the appropriate configuration.
 
 
-- **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  It is
+- **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  The dashboard can be used on its own - without the PQPublishers or PQSubscribers - just to watch the stats of a queue, and will detect other Solace clients (like SdkPerf) binding to the queue it is watching.  For more information, check out the README in the `src/dist/html` folder.
 
 
 ## Building
@@ -59,6 +59,10 @@ This will create a folder `build/staged` where the required JAR libraries, confi
 
 ## Running
 
+More here.
+
+
+![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals2.png)
 
 
 
@@ -237,12 +241,4 @@ The publisher application keeps a list of all keys that it has published on, and
 
 
 ### OrderChecker
-
-
-## What it looks like
-
-![Dashboard view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/dashboard2.png)
-
-![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals2.png)
-
 
