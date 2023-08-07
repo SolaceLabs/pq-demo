@@ -7,7 +7,7 @@
     <Console name="console" target="SYSTEM_OUT">
       <ThresholdFilter level="debug" onMatch="ACCEPT" onMismatch="DENY"/>
       <!-- PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %c{1} %-5level - %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/ -->
-      <PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/>
+      <PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %-5level %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/>
     </Console>
     <!-- File name="logfile" fileName="log/pqdemo.log" -->  <!-- will be relative to wherever you run -->
     <File name="logfile" fileName="log/${sys:logfile_name}-${sys:pid}.log">  <!-- will be relative to wherever you run -->

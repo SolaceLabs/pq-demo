@@ -135,7 +135,7 @@ public class ScaledPoisson {
 		l3.sort(null);
 //		l4.sort(null);
 
-		System.out.println("v="+pdMeanMs + "\t"+pdMeanMs+"*PD_1\tPD_"+pdMeanMs + "\tsPD_p"+POW_SCALE);
+		System.out.println("v="+pdMeanMs + "\t"+pdMeanMs+"*PD(1)\tPD("+pdMeanMs + ")\tsPD_p("+pdMeanMs+")");
 //		System.out.println("v="+pdMeanMs + "\t"+pdMeanMs+"*PD_1\tPD_"+pdMeanMs + "\tsPD_p"+POW_SCALE + "\tPD_p"+powValue2);
 		for (int i=0; i<l1.size(); i++) {
 			System.out.println(i + "\t" + l1.get(i) + "\t" + l2.get(i) + "\t" + l3.get(i));

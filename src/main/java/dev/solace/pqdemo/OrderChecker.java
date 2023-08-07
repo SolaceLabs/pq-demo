@@ -144,11 +144,11 @@ public class OrderChecker extends AbstractParentApp {
 						updateVars(EnumSet.of(updatedCommand));
 					}
 				} else if (topic.startsWith("pq-demo/proc/")) {
-					if ((Double)stateMap.get(Command.PROB) > 0) {
+//					if ((Double)stateMap.get(Command.PROB) > 0) {
 						dealWithProcMessage(message);
-					} else {
+//					} else {
 						// safely ignore, not tracking sequences
-					}
+//					}
 				} else if (topic.startsWith("#SYS/LOG")) {
 					BrokerLogFileOnly.log(message);
 				} else {

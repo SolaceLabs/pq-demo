@@ -69,7 +69,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static volatile String topicString = null;  // passed in from command line
 
 	private static volatile boolean isPaused = false;
-	private static volatile ScaledPoisson delayMsecPoissonDist = new ScaledPoisson((Integer)Command.DELAY.defaultVal);  // starting value
+	private static volatile ScaledPoisson delayMsecPoissonDist = null;//new ScaledPoisson((Integer)Command.DELAY.defaultVal);  // starting value
 
 	private static Map<String, AtomicInteger> allKeysNextSeqNoMap = new HashMap<>();  // all keys, what's my seqNum
 	private static PriorityQueue<MessageKeyToResend> timeSortedQueueOfResendMsgs = new PriorityQueue<>();  // sorted on timestamp
@@ -228,8 +228,8 @@ public class PQPublisher extends AbstractParentApp {
 				msgRateOver200Count++;
 				if (msgRateOver200Count >= 5) {  // 5 seconds of sustained speed, switch to disp=agg
 					logger.warn("Message rate too high, switching to aggregate display");
-					sendDirectMsg("pq-demo/control-all/disp/agg");
-//					stateMap.put(Command.DISP, "agg");
+					sendDirectMsg("pq-demo/control-all/disp/agg");  // no local delivery (I won't get this message)
+					stateMap.put(Command.DISP, "agg");  // so need to set manually
 				}
 			} else msgRateOver200Count = 0;
 			msgSentCounter = 0;

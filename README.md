@@ -108,7 +108,7 @@ Shows all Commands that the PQ Demo responds to (using topics)
   PROB:  Probability of "follow-on" message (same key, next seqNum)
          Pub,  1 param, decimal [0..1], default=0.0,  e.g. 'pq-demo/control-all/prob/0.25'
   DELAY: Mean time in ms (scaled Poisson dist) to delay follow-on message
-         Pub,  1 param, integer [0..30000], default=1000,  e.g. 'pq-demo/control-all/delay/2000'
+         Pub,  1 param, integer [0..30000], default=0,  e.g. 'pq-demo/control-all/delay/2000'
   SIZE:  Size in bytes of published messages
          Pub,  1 param, integer [0..100000], default=0,  e.g. 'pq-demo/control-all/size/1024'
   SLOW:  Slow consumer, mean time in ms (scaled Poisson dist) to take to "process" a message
@@ -185,7 +185,7 @@ Setting to 0 disables all sequenced checks in the Subscribers and the OrderCheck
 
 ### DELAY - (Pub only) Mean time in ms that the publisher will wait before resending
 
-Related to `PROB` above, this is the approximate time the publisher will wait before sending the follow-on message with the same key.  
+Related to `PROB` above, this is the approximate time the publisher will wait before sending the follow-on message with the same key.  The default value of 0 means that if the probability check is met, the next message published wlll be the same key.  Or, as an example, if the delay is 5000ms, then this particular key will put into the resend queue to be sent with the next sequence number in approximatlely* 5 seconds. *see Scaled Poisson section
 
 
 
