@@ -51,7 +51,8 @@ import com.solacesystems.jcsmp.XMLMessageProducer;
 public abstract class AbstractParentApp {
 	
 	static {  // used by log4j2 for the filename
-		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));
+//		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));
+		System.setProperty("pid", String.format("%04d", (int)(Math.random()*1000)));
 	}
 	
     static volatile boolean isShutdown = false;             // are we done?
@@ -233,7 +234,7 @@ public abstract class AbstractParentApp {
     }
     
     private static String shortNameGenerator() {
-    	long pid = ProcessHandle.current().pid();
+    	long pid = Long.parseLong(System.getProperty("pid"));  // set at top of this file
     	return String.format("%04d", pid);
 /*    	
     	StringBuilder sb = new StringBuilder();

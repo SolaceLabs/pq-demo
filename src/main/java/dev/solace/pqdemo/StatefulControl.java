@@ -240,7 +240,7 @@ public class StatefulControl extends AbstractParentApp {
 	            if (System.in.available() > 0) {
 	            	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 	            	String line = reader.readLine();
-	            	if (line == null || line.isBlank()) {
+	            	if (line == null || line.isEmpty()) {
 //	            		logger.warn("Ignoring!");
 		            	System.out.print(PROMPT);
 	            		continue;
