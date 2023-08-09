@@ -181,11 +181,7 @@ public class OrderChecker extends AbstractParentApp {
         
         // Ready to start the application, just add some subs
         addCustomSubscription("pq-demo/proc/>");  // listen to "processed" msg receipts from subs
-//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
-//        addCustomSubscription("pq-demo/control-all/>");
-//        addCustomSubscription("POST/pq-demo/control-all/>");
-//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
-//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
+        addCustomSubscription("#SYS/LOG/>");  // listen to broker event logs and interleave with our logs
         injectSubscriptions();
         
         final Thread shutdownThread = new Thread(new Runnable() {
@@ -253,7 +249,7 @@ public class OrderChecker extends AbstractParentApp {
 //    		}
             String pqKey = levels[4];
             int msgSeqNum = Integer.parseInt(levels[5]);
-            boolean redelivered = levels.length > 6 && levels[6].equals("red");
+            boolean redelivered = levels.length > 6 && levels[6].equals("reD");
             
             sequencer.dealWith(q, sub, pqKey, msgSeqNum, redelivered);
             

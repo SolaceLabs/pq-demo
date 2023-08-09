@@ -30,14 +30,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
+import com.solacesystems.jcsmp.BytesMessage;
 import com.solacesystems.jcsmp.BytesXMLMessage;
 import com.solacesystems.jcsmp.ConsumerFlowProperties;
+import com.solacesystems.jcsmp.DeliveryMode;
 import com.solacesystems.jcsmp.FlowEvent;
 import com.solacesystems.jcsmp.FlowEventArgs;
 import com.solacesystems.jcsmp.FlowEventHandler;
 import com.solacesystems.jcsmp.FlowReceiver;
 import com.solacesystems.jcsmp.JCSMPChannelProperties;
 import com.solacesystems.jcsmp.JCSMPErrorResponseException;
+import com.solacesystems.jcsmp.JCSMPErrorResponseSubcodeEx;
 import com.solacesystems.jcsmp.JCSMPException;
 import com.solacesystems.jcsmp.JCSMPFactory;
 import com.solacesystems.jcsmp.JCSMPProperties;
@@ -47,6 +50,7 @@ import com.solacesystems.jcsmp.OperationNotSupportedException;
 import com.solacesystems.jcsmp.Queue;
 import com.solacesystems.jcsmp.SDTException;
 import com.solacesystems.jcsmp.TextMessage;
+import com.solacesystems.jcsmp.User_Cos;
 import com.solacesystems.jcsmp.XMLMessageListener;
 
 public class PQSubscriber extends AbstractParentApp {
@@ -57,7 +61,7 @@ public class PQSubscriber extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));
 	}
 
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
+    static ScheduledExecutorService statsThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
 	private static volatile int msgRecvCounter = 0;                 // num messages received per sec
 
@@ -234,7 +238,7 @@ public class PQSubscriber extends AbstractParentApp {
 			return;
 		}
 
-		singleThreadPool.scheduleAtFixedRate(() -> {
+		statsThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;
 			publishPrintStats();
 		}, 1, 1, TimeUnit.SECONDS);
@@ -254,7 +258,7 @@ public class PQSubscriber extends AbstractParentApp {
 	        		Thread.sleep(1000);
 	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
-	        		singleThreadPool.shutdown();  // stop printing stats
+	        		statsThreadPool.shutdown();  // stop printing stats
 	        		session.closeSession();  // will also close consumer and producer objects
             	} catch (InterruptedException e) {
             		// ignore, quitting!
@@ -291,6 +295,45 @@ public class PQSubscriber extends AbstractParentApp {
 		}
 		System.out.println("Main thread exiting.");
 	}
+	
+    // used for sending onward processing confirm to the backend
+    static void sendGuaranteedProctMsgAndAck(final BytesXMLMessage msgToAck, final String pqKey,  int delayMs) {
+    	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
+    	msgSendThreadPool.schedule(new Runnable() {
+			@Override
+			public void run() {
+		    	String topic = String.format("pq-demo/proc/%s/%s/%s/%d/%s",
+		    			queueNameSimple, myName, pqKey, msgToAck.getSequenceNumber(), msgToAck.getRedelivered() ? "reD" : "_");
+		    	assert producer != null;
+				if (producer.isClosed()) {
+					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
+					logger.warn("Producer.isClosed() but trying to send PROC message to topic: " + topic + ".  Aborting.");
+					return;
+				}
+				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
+			   	try {
+			    	final BytesMessage msg = JCSMPFactory.onlyInstance().createMessage(BytesMessage.class);
+			    	msg.setDeliveryMode(DeliveryMode.PERSISTENT);  // I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
+			    	msg.setCos(User_Cos.USER_COS_2);  // publish all of these at COS2 so COS1 Direct msgs from broker event logs don't get stuck behind
+//			    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
+			   		// send proc message first
+					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
+					// then ack back to queue
+					logger.trace("PROC message sent, now ACKing: " + topic);
+					msgToAck.ackMessage();  // should REALLY (in a proper setup) send a Guaranteed message & WAIT for the ACK confirmation before ACKing this message
+					// but this is just a demo... probably good enough here
+				} catch (JCSMPException e) {
+					logger.error("### Could not send message to topic: " + topic + " due to: " + e.toString());
+					if (e instanceof JCSMPTransportException) {  // all reconnect attempts failed
+						isShutdown = true;  // let's quit; or, could initiate a new connection attempt
+					} else if (e instanceof JCSMPErrorResponseException) {  // might have some extra info
+						JCSMPErrorResponseException e2 = (JCSMPErrorResponseException)e;
+						logger.warn("Specifics: " + JCSMPErrorResponseSubcodeEx.getSubcodeAsString(e2.getSubcodeEx()) + ": " + e2.getResponsePhrase());
+					}
+				}
+			}
+    	}, delayMs, TimeUnit.MILLISECONDS);
+    }
 
 
 	////////////////////////////////////////////////////////////////////////////
@@ -302,6 +345,7 @@ public class PQSubscriber extends AbstractParentApp {
 		public void onReceive(BytesXMLMessage msg) {
 			msgRecvCounter++;
 			try {
+				String msgTopic = msg.getDestination().getName();
 				if (!"aaron rules".equals(msg.getApplicationMessageId())) {
 					logger.warn("Ignoring/flushing non-demo message found on queue '" + queueName + "'");
 					msg.ackMessage();
@@ -325,6 +369,7 @@ public class PQSubscriber extends AbstractParentApp {
 					return;
 				}
 				// now track the sequence of this msg...
+				System.out.println("topic: " + msgTopic + ", ackMsgId: " + msg.getAckMessageId());
 				boolean knownDupe = sequencer.dealWith(queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered());
 				if (knownDupe) {
 					// this can happen when re-running multiple times without restarting the subscriber, so let's ignore
@@ -339,6 +384,11 @@ public class PQSubscriber extends AbstractParentApp {
 					// but honestly, really, could handle this smarter... de-dupe here in the subscriber, only resend if we know we haven't got an ACK previously
 //					msg.ackMessage();  // ideally, Sequencer should keep track of whether each seq num has been ACKed after publishing the "processed" message to the downstream/backend system
 //					return;  // end early, don't try processing it and sending it on because we're assuming (only for the demo) that it was successfully published onwards 
+				}
+				String[] levels = msgTopic.split("/");
+				// pq12/pub-8722/a/3/nack
+				if (levels.length > 4 && "nack".equals(levels[4])) {
+					logger.warn("Detected NACK resend for message on topic: " + msgTopic);
 				}
 
 				// now to "process" the message i.e. sleep this thread for a bit to show "slow processing"
@@ -359,11 +409,11 @@ public class PQSubscriber extends AbstractParentApp {
 				// Therefore, DO NOT ACK until all processing/storing of this message is complete.
 				// NOTE that messages can be acknowledged from a different thread.
 				// ideally, we should do "processing" in a different thread with a LinkedBlockingQueue, and using flow control (e.g. stop()) when the queue is a certain size to prevent getting overloaded
-					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
-							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
+//					String topic = String.format("pq-demo/proc/%s/%s/%s/%d%s",
+//							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
 //				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
 //						queueNameSimple, myName, pqKey, msgSeqNum);
-				sendGuaranteedProctMsgAndAck(topic, null, msg, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
+				sendGuaranteedProctMsgAndAck(msg, pqKey, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
 				// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
 				// that would be the PROPER way, but this is just a silly demo
 				// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here

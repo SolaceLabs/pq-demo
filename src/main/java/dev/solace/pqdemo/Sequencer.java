@@ -32,7 +32,9 @@ public class Sequencer {
 	enum Status {
 		OK,  // as expected, seqNum is 1 more than previous
 		JUMP,
+		JUMP_GAP,
 		REWIND,
+		REWIND_GAP,
 		NO_OC,  // no order checking
 		;
 	}
@@ -40,12 +42,14 @@ public class Sequencer {
 	static class SequenceInsertStatus {
 
 		final Status status;
+		final boolean hasPrev;
 		final int numDupes;
 		final int expected;
 		final boolean diffSub;
 
-		public SequenceInsertStatus(Status status, int numDupes, int expected, boolean diffSub) {
+		public SequenceInsertStatus(Status status, boolean hasPrev, int numDupes, int expected, boolean diffSub) {
 			this.status = status;
+			this.hasPrev = hasPrev;
 			this.numDupes = numDupes;
 			this.expected = expected;
 			this.diffSub = diffSub;
@@ -65,7 +69,7 @@ public class Sequencer {
 			int missingCountThreshold = Integer.MAX_VALUE;  // if this gets set, then stop trying to print missing to log until it falls below...
 		
 			/** called when first initializing for this particular PQ key */
-			public PerKeySequence(String myKey, int startingSeq, String who) {
+			PerKeySequence(String myKey, int startingSeq, String who) {
 				this.myKey = myKey;
 				numDupesPerSeqNum.put(startingSeq, new AtomicInteger(0));
 				lastSeqNumSeen = startingSeq;
@@ -83,14 +87,14 @@ public class Sequencer {
 				return numDupesPerSeqNum.get(seqNum).incrementAndGet();
 			}
 			
-			public boolean hasPrevSeqNum(int seqNum) {
+			private boolean hasPrevSeqNum(int seqNum) {
 				return seqNum <= 1 || numDupesPerSeqNum.containsKey(seqNum-1);  // at least one delivery on the previous key
 			}
 			
 			public SequenceInsertStatus insert(int seqNum, String who) {
 				if (seqNum == 0) {  // ignore!
 					lastSeqNumSeen = 0;  // reset
-					return new SequenceInsertStatus(Status.NO_OC, 0, 0, false);
+					return new SequenceInsertStatus(Status.NO_OC, true, 0, 0, false);
 				}
 				if (isOrderTracker) {  // the OrderChecker tracks missing messages, but the Subscribers do not
 					if (missing != null) {  // if it's been initialized, then at least one message on this key has been missing
@@ -105,11 +109,12 @@ public class Sequencer {
 				lastSubSeen = who;  // now update it
 				final int expectedSeqNum = lastSeqNumSeen + 1;
 				if (seqNum == lastSeqNumSeen + 1) {  // all good I guess!
-					return new SequenceInsertStatus(Status.OK, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					return new SequenceInsertStatus(Status.OK, true, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
 				}
 				// else something is wrong.  Gap or redelivery?  remember, haven't seen this one before 
 				if (seqNum <= lastSeqNumSeen) {  // REWIND hopefully this is a redelivery!  ( == same is a rewind by 1)
-					return new SequenceInsertStatus(Status.REWIND, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					
+					return new SequenceInsertStatus(Status.REWIND, hasPrevSeqNum(seqNum), incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
 				} else {  // JUMP!
 					if (isOrderTracker) {
 						// make sure that the missing Set has been initialized
@@ -121,7 +126,7 @@ public class Sequencer {
 						}
 						if (!missing.isEmpty()) keysWithGaps.add(myKey);
 					}
-					return new SequenceInsertStatus(Status.JUMP, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					return new SequenceInsertStatus(Status.JUMP, hasPrevSeqNum(seqNum), incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
 				}
 			}
 			
@@ -203,7 +208,7 @@ public class Sequencer {
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 1, got: 1, -- , prev:✔   OK
 				// (sub-YYNK) q:nonex, key:EG-43a7b975, exp: 2, got: 3,  +2, prev:❌  JUMP missing 1: [2]
 				// (sub-AVQY) q:nonex, key:EG-43a7b975, exp: 4, got: 2,  -2, prev:✔   REWIND ⚠ DIFFSUB
-				PerKeySequence perKeySeq = keysToSeqsMap.get(pqKey);  // do we have a sequence for this key?
+				PerKeySequence perKeySeq = keysToSeqsMap.get(pqKey);  // have we seen this key before?
 			    if (isEnabled && perKeySeq != null) {
 			    	// we've seen this key before, so let's insert the update and see what happens...
 			    	final SequenceInsertStatus seqStatus = perKeySeq.insert(msgSeqNum, sub);
@@ -212,7 +217,7 @@ public class Sequencer {
 			    			msgSeqNum < seqStatus.expected ?
 			    					Integer.toString(msgSeqNum-seqStatus.expected)
 			    					: "+" + Integer.toString(msgSeqNum-seqStatus.expected+1));
-			    	final boolean prev = perKeySeq.hasPrevSeqNum(msgSeqNum);
+			    	final boolean prev = seqStatus.hasPrev;
 			    	if (!prev) gaps++;  // increment the counter
 			    	final String prevStr =  msgSeqNum == 0 ? "-" : prev ? CharsetUtils.PREV_YES : CharsetUtils.PREV_NO;
 			    	final String diffSubStr = seqStatus.diffSub ? " " + CharsetUtils.WARNING + " DIFFSUB" : "";
@@ -220,6 +225,8 @@ public class Sequencer {
 			    	final String missingStr = perKeySeq.toStringMissingRanged();  // just to print the ranges of seq nums that we're missing
 			    	// OK, so stats for red & gaps (prevSeqNum) & dupes all taken care of... just newKs & oos to take care of...
 	                final String logEntry = String.format(inner, pqKey, msgSeqNum, seqStatus.expected, plusMinusJumpCount, prevStr, seqStatus.status, diffSubStr, dupeCountStr, missingStr);
+	                // inner: key, got seqNum, expected seqNum, plusMinusCount, prevStr, insert status (OK),  diff Sub?, dupe?, list of missing
+
 	                // I think we should log all redeliveries, always, for visibility
 	                // And any non-OK status should be logged, regardless of redelivery flag or not...
 			    	// if (redeliveredFlag) {  // ok, how to deal..?
@@ -243,34 +250,31 @@ public class Sequencer {
 	                        }
 							break;
 			    		case JUMP:  // shouldn't jump ahead, unless we're a non-ex queue and redelivering?  Or during NACK retransmission
-			    			// JUMP will always at log at >= INFO
+			    			// JUMP will always at log at >= INFO, no GAP so is not so bad
+			    			oos++;
+	    					logger.info(logEntry);
+							break;
+			    		case JUMP_GAP:
+			    			// JUMP with a GAP will always at log at >= WARN
 			    			oos++;
 			    			if (seqStatus.numDupes > 0) {  // have seen this one before
-			    				if (prev) {
-			    					logger.info(logEntry);
-			    				} else {
-			    					logger.warn(logEntry);  // gap!
-			    				}
+		    					logger.warn(logEntry);  // but still gap!
 			    			} else {  // never seen before
-			    				if (prev) {  // at least we've seen the key before this, so maybe not all bad
-			    					logger.info(logEntry);
-			    				} else {
-			    					if (redeliveredFlag || !isOrderTracker) {
-			    						logger.warn(logEntry);  // gap! but this is normal for subscribers to see that take over another flow of messages
-			    					} else {
-			    						logger.error(logEntry + " GAP");  // gap!
-			    					}
-			    				}
+		    					if (redeliveredFlag || !isOrderTracker) {
+		    						logger.warn(logEntry);  // gap! but this is normal for subscribers to see that take over another flow of messages
+		    					} else {
+		    						logger.error(logEntry);  // gap! bad bad in OC
+		    					}
 			    			}
 							break;
-			    		case REWIND:  // rewinding, but this is a redelivered msg, so is ok?
+			    		case REWIND:  // rewinding, but has no gap so is ok?
 			    			// REWIND will always at log at >= INFO
-							if (prev) {
-			    				logger.info(logEntry);
-							} else {
-								oos++;
-								logger.error(logEntry + " GAP");
-							}
+			    			// should we call this an OoS as well..?  It's a change of sequence for sure..?
+			    			logger.info(logEntry);
+			    			break;
+			    		case REWIND_GAP:  // gaps are bad
+							oos++;
+							logger.error(logEntry);  // this should be really hard
 							break;
 			    		default:
 			    			throw new AssertionError();
@@ -322,19 +326,21 @@ public class Sequencer {
 			//     	}
 			    	return seqStatus.numDupes > 0;
 			    } else {  // first time seeing this PQ key, or we're not enabled so who cares
+	                // inner: key, got seqNum, expected seqNum, plusMinusCount, prevStr, insert status (OK),  diff Sub?, dupe?, list of missing
 			    	if (msgSeqNum == 0 || !isEnabled) {  // ignore, either msg with no seq num or we're not tracking
-			    		if (showEach) logger.debug(String.format(inner, pqKey, 0, msgSeqNum, "---", "-", "NO_OC", "", "", ""));
-			    		else logger.trace(String.format(inner, pqKey, 0, msgSeqNum, "-- ", "-", "NO_OC", "", "", ""));
+			    		if (showEach) logger.debug(String.format(inner, pqKey, msgSeqNum, 0, "---", "-", "NO_OC", "", "", ""));
+			    		else logger.trace(String.format(inner, pqKey, msgSeqNum, 0, "-- ", "-", "NO_OC", "", "", ""));
 			    	} else {
 				    	keysToSeqsMap.put(pqKey, new PerKeySequence(pqKey, msgSeqNum, sub));  // new guy!
 				    	totalKeysSeen++;
 				    	newKs++;
 				    	if (msgSeqNum > 1) {  // first message of this key, but non-zero seq number... no problem
 		//		    		oos++;  // actually, don't count this as an OoSeq, as it causes disturbing stats for viewers
-				    		logger.info(String.format(inner, pqKey, 1, msgSeqNum, "+"+msgSeqNum, CharsetUtils.WARNING, " FIRST", "", "", ""));
-				    	} else if (msgSeqNum == 1) {
-				    		if (showEach) logger.debug(String.format(inner, pqKey, 1, msgSeqNum, "---", CharsetUtils.PREV_YES, "OK", "", "", ""));
-				    		else logger.trace(String.format(inner, pqKey, 1, msgSeqNum, "-- ", CharsetUtils.PREV_YES, "OK", "", "", ""));
+				    		logger.info(String.format(inner, pqKey, msgSeqNum, 1, "+"+msgSeqNum, CharsetUtils.WARNING, " FIRST", "", "", ""));
+				    	} else {
+				    		if (redeliveredFlag) logger.info(String.format(inner, pqKey, msgSeqNum, 1, "---", CharsetUtils.PREV_YES, "OK", "", "", ""));
+				    		else if (showEach) logger.debug(String.format(inner, pqKey, msgSeqNum, 1, "---", CharsetUtils.PREV_YES, "OK", "", "", ""));
+				    		else logger.trace(String.format(inner, pqKey, msgSeqNum, 1, "-- ", CharsetUtils.PREV_YES, "OK", "", "", ""));
 				    	}
 			    	}
 			    	// end of block meaning we've never seen this before, or not tracking stats, so return false no dupe!

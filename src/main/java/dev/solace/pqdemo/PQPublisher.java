@@ -66,7 +66,7 @@ public class PQPublisher extends AbstractParentApp {
 
     private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
 
-	private static volatile String topicString = null;  // passed in from command line
+	private static volatile String topicPrefix = null;  // passed in from command line
 
 	private static volatile boolean isPaused = false;
 	private static volatile ScaledPoisson delayMsecPoissonDist = null;//new ScaledPoisson((Integer)Command.DELAY.defaultVal);  // starting value
@@ -242,8 +242,14 @@ public class PQPublisher extends AbstractParentApp {
 	/** Main. */
 	public static void main(String... args) throws JCSMPException, IOException, InterruptedException {
 		if (args.length < 5) {  // Check command line arguments
-			System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> <password> <topic> [pub-ad-win-size]%n%n", APP_NAME);
+			System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> <password> <topic-prefix> [pub-ad-win-size]%n%n", APP_NAME);
 			System.out.println("Set env var 'export PQ_PUBLISHER_OPTS=-Dforce-key-set=a,b,c,d' to make the publisher use a defined set of keys.");
+			System.exit(-1);
+		}
+		topicPrefix = args[4];
+		if (!topicPrefix.endsWith("/")) {
+			System.err.println("topicPrefix must end with slah \"/\" character.");
+			System.err.println("And ensure queue has matching \">\" multi-level wildcard subscription.");
 			System.exit(-1);
 		}
 		logger.debug(APP_NAME + " initializing...");
@@ -254,7 +260,6 @@ public class PQPublisher extends AbstractParentApp {
 		} else {
 			properties.setProperty(JCSMPProperties.PUB_ACK_WINDOW_SIZE, 255);  // fast!  might cause a few OoO messages during NACKs
 		}
-		topicString = args[4];  // no checks! haha
 		session = JCSMPFactory.onlyInstance().createSession(properties, null, new SessionEventHandler() {
 			@Override
 			public void handleEvent(SessionEventArgs event) {  // could be reconnecting, connection lost, etc.
@@ -466,7 +471,9 @@ public class PQPublisher extends AbstractParentApp {
 				message.setSenderTimestamp(System.currentTimeMillis());  // might help later with tracking/tracing/observability
 				message.setCorrelationKey(message);  // used for ACK/NACK correlation locally here within the publisher app
 				message.setElidingEligible(true);  // why not?
-				Topic topic = JCSMPFactory.onlyInstance().createTopic(topicString);
+				StringBuilder topicSb = new StringBuilder(topicPrefix).append(myName).append('/').append(pqKey).append('/').append(seqNo).append('/');
+				topicSb.append(m != null && m.wasNack ? "nack" : "_");
+				Topic topic = JCSMPFactory.onlyInstance().createTopic(topicSb.toString());
 				maxLengthKey = Math.max(maxLengthKey, pqKey.length());  // this is just for pretty-printing on console
 				maxLengthSeqNo = Math.max(maxLengthSeqNo, Integer.toString(seqNo).length());  // this is just for pretty-printing on console
 	
@@ -482,7 +489,7 @@ public class PQPublisher extends AbstractParentApp {
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
 					queueResendMsg(futureMsg);
 					String inner = String.format("[%%%ds, %%%dd]", maxLengthKey, maxLengthSeqNo);
-					String logEntry = String.format("%s sending [key, seq]: " + inner + ", resend in %dms",
+					String logEntry = String.format("%s sending [key, seq]: " + inner + ", Q resend in %dms",
 							myName, pqKey, seqNo, msecDelay);
 					if (stateMap.get(Command.DISP).equals("each")) {
 						logger.debug(logEntry);

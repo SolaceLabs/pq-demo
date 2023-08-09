@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="warn" monitorInterval="10" xmlns:xi="http://www.w3.org/2001/XInclude">
+<Configuration status="warn" monitorInterval="10" shutdownHook="disable" xmlns:xi="http://www.w3.org/2001/XInclude">
   <!-- Properties>
     <Property name="sys:log-file-name">default</Property>
   </Properties -->
@@ -12,12 +12,13 @@
     <!-- File name="logfile" fileName="log/pqdemo.log" -->  <!-- will be relative to wherever you run -->
     <File name="logfile" fileName="log/${sys:logfile_name}-${sys:pid}.log">  <!-- will be relative to wherever you run -->
       <!-- ThresholdFilter level="trace" onMatch="ACCEPT" onMismatch="DENY"/ -->
-      <PatternLayout>
+      <CsvLogEventLayout/>
+      <!-- PatternLayout>
         <Pattern>%d %c{1.} [%t] %-5level %m%n</Pattern>
 
-        <!--Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %logger{5.} - %msg%n</Pattern-->
-        <!--JSONLayout/-->
-      </PatternLayout>
+        < ! - - Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %logger{5.} - %msg%n</Pattern - - >
+        < ! - - JSONLayout/ - - >
+      </PatternLayout -->
     </File>
   </Appenders>
   <Loggers>

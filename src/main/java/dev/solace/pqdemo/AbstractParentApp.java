@@ -25,7 +25,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,7 +32,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.solacesystems.jcsmp.BytesXMLMessage;
-import com.solacesystems.jcsmp.DeliveryMode;
 import com.solacesystems.jcsmp.JCSMPChannelProperties;
 import com.solacesystems.jcsmp.JCSMPErrorResponseException;
 import com.solacesystems.jcsmp.JCSMPErrorResponseSubcodeEx;
@@ -52,22 +50,21 @@ import com.solacesystems.jcsmp.XMLMessageProducer;
 
 public abstract class AbstractParentApp {
 	
-//	static final String PID = ProcessHandle.current().pid();
-	static {
+	static {  // used by log4j2 for the filename
 		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));
 	}
 	
     static volatile boolean isShutdown = false;             // are we done?
     static volatile boolean isConnected = false;
     
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Message-Sender"));
+    static ScheduledExecutorService msgSendThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Message-Sender"));
 
     static JCSMPSession session = null;
     static String myName = null;  // will initialize when connecting
     static String nick = "";  // nick 2 (or 3?) letters of myName
     static XMLMessageProducer producer = null;
     static XMLMessageConsumer consumer = null;
-    static Set<String> subscriptions = new LinkedHashSet<>();
+    private static Set<String> subscriptions = new LinkedHashSet<>();
     
     static volatile Map<Command,Object> stateMap = new HashMap<>();  // volatile so different threads can see the updates right away
     static {
@@ -106,44 +103,7 @@ public abstract class AbstractParentApp {
         }
     }
     
-    // used for sending onward processing confirm to the backend
-    static void sendGuaranteedProctMsgAndAck(final String topic, final String payload, final BytesXMLMessage msgToAck, int delayMs) {
-    	assert msgToAck != null;
-    	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
-    	if (payload != null) msg.setText(payload);
-    	msg.setDeliveryMode(DeliveryMode.PERSISTENT);  // I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
-//    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
 
-    	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
-    	singleThreadPool.schedule(new Runnable() {
-			@Override
-			public void run() {
-		    	assert producer != null;
-				if (producer.isClosed()) {
-					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
-					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
-					return;
-				}
-				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
-			   	try {
-			   		// send proc message first
-					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
-					// then ack back to queue
-					logger.trace("PROC message sent, now ACKing: " + topic);
-					msgToAck.ackMessage();  // should REALLY (in a proper setup) send a Guaranteed message & WAIT for the ACK confirmation before ACKing this message
-					// but this is just a demo... probably good enough here
-				} catch (JCSMPException e) {
-					logger.error("### Could not send message to topic: " + topic + " due to: " + e.toString());
-					if (e instanceof JCSMPTransportException) {  // all reconnect attempts failed
-						isShutdown = true;  // let's quit; or, could initiate a new connection attempt
-					} else if (e instanceof JCSMPErrorResponseException) {  // might have some extra info
-						JCSMPErrorResponseException e2 = (JCSMPErrorResponseException)e;
-						logger.warn("Specifics: " + JCSMPErrorResponseSubcodeEx.getSubcodeAsString(e2.getSubcodeEx()) + ": " + e2.getResponsePhrase());
-					}
-				}
-			}
-    	}, delayMs, TimeUnit.MILLISECONDS);
-    }
 
     // used for sending onward processing confirm to the backend
 /*    static void sendDirect(final String topic, final String payload, int delayMs, DeliveryMode mode) {
@@ -153,7 +113,7 @@ public abstract class AbstractParentApp {
 //    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
 
     	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
-    	singleThreadPool.schedule(new Runnable() {
+    	statsThreadPool.schedule(new Runnable() {
 			@Override
 			public void run() {
 		    	assert producer != null;
@@ -187,7 +147,7 @@ public abstract class AbstractParentApp {
     	final TextMessage msg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
     	if (payload != null) msg.setText(payload);
 
-    	singleThreadPool.submit(new Runnable() {  // schedule right away
+    	msgSendThreadPool.submit(new Runnable() {  // schedule right away
 			@Override
 			public void run() {
 		    	assert producer != null;
@@ -302,7 +262,6 @@ public abstract class AbstractParentApp {
         subscriptions.add("POST/pq-demo/control-all/>");
         subscriptions.add("pq-demo/control-" + myName + "/>");
         subscriptions.add("POST/pq-demo/control-" + myName + "/>");
-        subscriptions.add("#SYS/LOG/>");
     }
 
     /** do this after connecting and you're ready to go */
