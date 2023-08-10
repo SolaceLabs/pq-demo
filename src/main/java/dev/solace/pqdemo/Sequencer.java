@@ -387,7 +387,7 @@ public class Sequencer {
     void stopCheckingSequenceNums() {  // on all queues?
     	isEnabled = false;
     	queuesToPqKeysSeqNumsMap.clear();  // will end up GC'ing all of the data b/c nothing else is holding onto it
-		
+		// reset my vars...
 		maxLengthKey = 1;
 		maxLengthSeqNo = 1;
 		totalKeysSeen = 0;

@@ -27,8 +27,6 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -64,8 +62,6 @@ public class PQPublisher extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));
 	}
 
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
-
 	private static volatile String topicPrefix = null;  // passed in from command line
 
 	private static volatile boolean isPaused = false;
@@ -92,7 +88,7 @@ public class PQPublisher extends AbstractParentApp {
 	static int maxLengthSeqNo = 1;
 	static int maxLengthRate = 1;
 	
-	// these are flags used when we need to clear some maps/datastructures, signalling from another thread so we don't cause concurrent modifcations
+	// these are flags used when we need to clear some maps/datastructures, signalling from another thread so we don't cause concurrent modifications
 	private static volatile boolean blankTheSeqNosFlag = false;
 	private static volatile boolean blankTheResendQ = false;
 
@@ -153,48 +149,57 @@ public class PQPublisher extends AbstractParentApp {
 		timeSortedQueueOfResendMsgs.clear();
 		pqkeyResendMsgsMap.clear();
 		blankTheResendQ = false;  // task completed, reset the flag
+		maxLengthKey = 1;
 	}
 	
 
 	/** call this after stateMap has changed, called from API callback thread though
-	 * @param updated */
-	static void updateVars(EnumSet<Command> updated) {
-		if (updated.contains(Command.KEYS)) {
+	 * @param updatedCommandsPrevValues */
+	static void updateVars(Map<Command,Object> updatedCommandsPrevValues) {
+		if (updatedCommandsPrevValues.containsKey(Command.KEYS)) {
 			if (forcedKeySet != null) {
 				logger.warn("Ignoring KEYS Command, using forced set of keys from command line");
-				stateMap.put(Command.KEYS, forcedKeySet.length);
+				stateMap.put(Command.KEYS, forcedKeySet.length);  // override/overwrite the stateMap value so our stats show properly
 			} else {
-				// ideally this should only be when lowering
-				logger.info("Change in number of keys, blanking the resendQ");
-				blankTheResendQ = true;
+				if ((Integer)stateMap.get(Command.KEYS) < (Integer)updatedCommandsPrevValues.get(Command.KEYS)) {
+					// ideally this should only be when lowering, yup done that now!
+					logger.info("Lowering the number of keys, blanking the resendQ");
+					blankTheResendQ = true;
+				}
 			}
 		}
-		if (updated.contains(Command.PAUSE)) {
+		if (updatedCommandsPrevValues.containsKey(Command.PAUSE)) {
 			logger.info((isPaused ? "Unpausing" : "Pausing") + " publishing...");
 			isPaused = !isPaused;  // pause/unpause
 		}
-		if (updated.contains(Command.RATE)) {
+		if (updatedCommandsPrevValues.containsKey(Command.RATE)) {
 			if ((Integer)stateMap.get(Command.RATE) == 0) isPaused = true;  // pause if we set the rate to 0
 			else isPaused = false;  // else we are setting it to something > 0, so if we're paused just unpause
+			if ((Integer)stateMap.get(Command.RATE) < (Integer)updatedCommandsPrevValues.get(Command.RATE)) {
+				maxLengthRate = 1;  // reset the spacing for the display
+			}
 		}
-		if (updated.contains(Command.PROB)) {
+		if (updatedCommandsPrevValues.containsKey(Command.PROB)) {
 			if ((Double)stateMap.get(Command.PROB) == 0) {
 				// this is coming in on the API dispatch thread
 				// so rather than clear the Map here, set a flag to blank from main thread
 				blankTheSeqNosFlag = true;
 			} else {  // changing the probability, let's blank the resendQ
-				logger.info("Change in republish probability, blanking the resendQ");
-				// ideally, only when lowering the probability
-				blankTheResendQ = true;
+				if ((Double)stateMap.get(Command.PROB) > (Double)updatedCommandsPrevValues.get(Command.PROB)) {
+					logger.info("Increase in republish probability, blanking the resendQ");
+					blankTheResendQ = true;
+				}
 			}
 		}
-		if (updated.contains(Command.DELAY)) {
+		if (updatedCommandsPrevValues.containsKey(Command.DELAY)) {
 			if ((Integer)stateMap.get(Command.DELAY) != 0) {
 				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
 			}
-			logger.info("Change in republish delay, blanking the resendQ");
-			// ideally, only when shortening the delay
-			blankTheResendQ = true;
+			if ((Integer)stateMap.get(Command.DELAY) < (Integer)updatedCommandsPrevValues.get(Command.DELAY)) {
+				logger.info("Decreasing the republish delay, blanking the resendQ");
+				// if delay is huge, and then shortening, need to throw away all those long-time messages 
+				blankTheResendQ = true;
+			}
 		}
 	}
 	
@@ -288,14 +293,14 @@ public class PQPublisher extends AbstractParentApp {
 					topic = String.join("/", topic.split("/",2)[1]);
 				}
 				if (topic.equals("pq-demo/state/update")) {  // sent by StatefulControl when it starts up
-					EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)message).getText());
+					Map<Command,Object> updated = parseStateUpdateMessage(((TextMessage)message).getText());
 					if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
 					else logger.debug("Received state update message, but ignoring, all values same");
 					updateVars(updated);
 				} else if (topic.startsWith("pq-demo/control-")) {  // could be broadcast control, or to just me
- 					Command updatedState = processControlMessage(topic);
+					Map<Command,Object> updatedState = processControlMessage(topic);
 					if (updatedState != null) {
-						updateVars(EnumSet.of(updatedState));
+						updateVars(updatedState);
 					}
 				} else if (topic.startsWith("#SYS/LOG")) {
 					BrokerLogFileOnly.log(message);
@@ -344,7 +349,7 @@ public class PQPublisher extends AbstractParentApp {
 		// Ready to start the application, just subscriptions
 		injectSubscriptions();
         
-		singleThreadPool.scheduleAtFixedRate(() -> {
+		statsThreadPool.scheduleAtFixedRate(() -> {
 			if (!isConnected) return;  // shutting down
 			publishPrintStats();
 		}, 1, 1, TimeUnit.SECONDS);
@@ -361,7 +366,7 @@ public class PQPublisher extends AbstractParentApp {
 	        		isConnected = false;  // shutting down
 	        		publishPrintStats();  // one last time
 	        		Thread.sleep(100);
-	        		singleThreadPool.shutdown();  // stop printing/sending stats
+	        		statsThreadPool.shutdown();  // stop printing/sending stats
 	        		session.closeSession();  // will close consumer and producer objects
             	} catch (InterruptedException e) {
             		// ignore, quitting!

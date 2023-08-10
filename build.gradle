@@ -26,7 +26,7 @@ repositories {
 }
 
 dependencies {
-    implementation fileTree(dir: 'lib', include: '*.jar')  // for including my SEMPv1 utils
+    implementation fileTree(dir: 'lib', include: '*.jar')  // for including my log4j2 appender
     implementation group: 'com.solacesystems', name: 'sol-jcsmp', version: '10.+'
     implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.+'
     implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.+'

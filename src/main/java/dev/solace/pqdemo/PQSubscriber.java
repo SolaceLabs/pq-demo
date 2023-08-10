@@ -22,8 +22,6 @@ import java.io.InputStreamReader;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
@@ -44,6 +42,7 @@ import com.solacesystems.jcsmp.JCSMPErrorResponseSubcodeEx;
 import com.solacesystems.jcsmp.JCSMPException;
 import com.solacesystems.jcsmp.JCSMPFactory;
 import com.solacesystems.jcsmp.JCSMPProperties;
+import com.solacesystems.jcsmp.JCSMPReconnectEventHandler;
 import com.solacesystems.jcsmp.JCSMPStreamingPublishCorrelatingEventHandler;
 import com.solacesystems.jcsmp.JCSMPTransportException;
 import com.solacesystems.jcsmp.OperationNotSupportedException;
@@ -61,8 +60,6 @@ public class PQSubscriber extends AbstractParentApp {
 		addMyCommands(EnumSet.of(Command.SLOW, Command.ACKD));
 	}
 
-    static ScheduledExecutorService statsThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
-
 	private static volatile int msgRecvCounter = 0;                 // num messages received per sec
 
 	private static FlowReceiver flowQueueReceiver = null;
@@ -78,21 +75,21 @@ public class PQSubscriber extends AbstractParentApp {
 
 
 	/** call this after stateMap has changed */
-	static void updateVars(EnumSet<Command> updated) {
-		if (updated.contains(Command.DISP)) {
+	static void updateVars(Map<Command,Object> updatedCommandsPrevValues) {
+		if (updatedCommandsPrevValues.containsKey(Command.DISP)) {
 			sequencer.showEach = stateMap.get(Command.DISP).equals("each");
 		}
-		if (updated.contains(Command.SLOW)) {
+		if (updatedCommandsPrevValues.containsKey(Command.SLOW)) {
 			// this will give us a slightly randomized "slow" processing delay for each message
 			if ((Integer)stateMap.get(Command.SLOW) > 0) slowPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.SLOW));
 		}
-		if (updated.contains(Command.ACKD)) {
+		if (updatedCommandsPrevValues.containsKey(Command.ACKD)) {
 			// no var to change, we just use stateMap value when ACKing
 		}
-		if (updated.contains(Command.PROB)) {
+		if (updatedCommandsPrevValues.containsKey(Command.PROB)) {
 			if ((Double)stateMap.get(Command.PROB) == 0) {
 				logger.info("Message sequencing disabled, removing all known pqKey sequence numbers");
-				// shoud be fine, on the same thread... triggered by receiving a message
+				// concurrency should be fine, on the same thread... triggered by receiving a message
 				sequencer.stopCheckingSequenceNums();
 			} else {
 				sequencer.startCheckingSequenceNums();
@@ -166,7 +163,18 @@ public class PQSubscriber extends AbstractParentApp {
 		});
 
 		// setup Consumer callbacks next: anonymous inner-class for Listener async threaded callbacks
-		consumer = session.getMessageConsumer(new SimpleIsConnectedReconnectHandler(), new XMLMessageListener() {
+		consumer = session.getMessageConsumer(new JCSMPReconnectEventHandler() {
+			@Override
+			public boolean preReconnect() throws JCSMPException {
+				isConnected = false;
+				currentFlowStatus = FlowEvent.FLOW_INACTIVE.name();  // force to "off" until we get the update from the FlowListener
+				return true;
+			}
+			@Override
+			public void postReconnect() throws JCSMPException {
+				isConnected = true;
+			}
+		}, new XMLMessageListener() {
 			@Override
 			public void onReceive(BytesXMLMessage message) {
 				String topic = message.getDestination().getName();
@@ -174,15 +182,15 @@ public class PQSubscriber extends AbstractParentApp {
 					topic = String.join("/", topic.split("/",2)[1]);
 				}
 				if (topic.equals("pq-demo/state/update")) {
-					EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)message).getText());
+					Map<Command,Object> updated = parseStateUpdateMessage(((TextMessage)message).getText());
 					if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
 					else logger.debug("Received state update message, but ignoring, all values same");
 					updateVars(updated);
 				} else if (topic.startsWith("pq-demo/control-")) {  // could be broadcast control, or to just me
 					//					processControlMessage(topic);
-					Command updatedState = processControlMessage(topic);
+					Map<Command,Object> updatedState = processControlMessage(topic);
 					if (updatedState != null) {
-						updateVars(EnumSet.of(updatedState));
+						updateVars(updatedState);
 					}
 				} else if (topic.startsWith("#SYS/LOG")) {
 					BrokerLogFileOnly.log(message);
@@ -273,11 +281,6 @@ public class PQSubscriber extends AbstractParentApp {
         logger.info(APP_NAME + " connected, and running. Press Ctrl+C to quit, or Esc+ENTER to kill.");
 
 		// Ready to start the application
-//        addCustomSubscription("pq-demo/state/update");  // listen to state update messages from StatefulControl
-//        addCustomSubscription("pq-demo/control-all/>");
-//        addCustomSubscription("POST/pq-demo/control-all/>");
-//        addCustomSubscription("pq-demo/control-" + myName + "/>");  // listen to quit control messages
-//        addCustomSubscription("POST/pq-demo/control-" + myName + "/>");  // listen to quit control messages in Gateway mode
         injectSubscriptions();
 		// tell the broker to start sending messages on this queue receiver
 		flowQueueReceiver.start();  // async queue receive working now, so time to wait until done...

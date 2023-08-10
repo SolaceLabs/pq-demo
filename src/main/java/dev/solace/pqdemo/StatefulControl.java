@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -155,8 +156,8 @@ public class StatefulControl extends AbstractParentApp {
 							logger.warn("Received an unexpected " + message.getClass().getSimpleName() + " message! Ignoring.");
 							return;
 						}
-						EnumSet<Command> updated = parseStateUpdateMessage(payload);
-						if (!updated.isEmpty()) logger.info("These values were forced to update: " + updated);
+						Map<Command,Object> updated = parseStateUpdateMessage(payload);
+						if (!updated.isEmpty()) logger.info("These values were forced to update: " + updated.keySet());
 						else logger.info("Nothing to update");
 						if (!updated.isEmpty()) {
 							sendDirectMsg("pq-demo/state/update", buildStatePayload());  // tell everyone what the updated state is
@@ -259,7 +260,7 @@ public class StatefulControl extends AbstractParentApp {
 	            		if (levels[1].trim().startsWith("'")) {  // user included the single quotes
 	            			levels[1] = levels[1].replaceAll("'", "");  // just blank them
 	            		}
-						EnumSet<Command> updated = parseStateUpdateMessage(levels[1]);
+						Map<Command,Object> updated = parseStateUpdateMessage(levels[1]);
 						if (!updated.isEmpty()) {
 							logger.info("These values were forced to update: " + updated);
 							sendDirectMsg("pq-demo/state/update", buildStatePayload());  // tell everyone what the updated state is

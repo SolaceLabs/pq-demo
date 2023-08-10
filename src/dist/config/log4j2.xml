@@ -9,17 +9,18 @@
       <!-- PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %c{1} %-5level - %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/ -->
       <PatternLayout pattern="%highlight{%d{HH:mm:ss.SSS} %-5level %msg%n%throwable}{FATAL=bright_magenta, ERROR=bright_red, WARN=bright_yellow, INFO=bright_white, DEBUG=white, TRACE=black}"/>
     </Console>
-    <!-- File name="logfile" fileName="log/pqdemo.log" -->  <!-- will be relative to wherever you run -->
-    <File name="logfile" fileName="log/${sys:logfile_name}-${sys:pid}.log">  <!-- will be relative to wherever you run -->
-      <!-- ThresholdFilter level="trace" onMatch="ACCEPT" onMismatch="DENY"/ -->
-      <CsvLogEventLayout/>
-      <!-- PatternLayout>
+    <!-- logfile location will be relative to wherever you run -->
+    <File name="logfile" fileName="log/${sys:logfile_name}-${sys:pid}.log">
+      <PatternLayout>
         <Pattern>%d %c{1.} [%t] %-5level %m%n</Pattern>
-
-        < ! - - Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %logger{5.} - %msg%n</Pattern - - >
-        < ! - - JSONLayout/ - - >
-      </PatternLayout -->
+        <!-- JSONLayout/ -->
+      </PatternLayout>
     </File>
+    <!-- File name="logfile" fileName="log/CombinedLogsCSV.txt">
+      <PatternLayout header="File,Time,Timestamp,Class,Thread,Level,Message%n">
+        <Pattern>${sys:logfile_name}-${sys:pid},%replace{%d{ISO8601}}{,}{.},%d{UNIX_MILLIS},%c{1.},%t,%level,%replace{%m}{,}{;}%n</Pattern>
+      </PatternLayout>
+    </File -->
   </Appenders>
   <Loggers>
     <!-- you can dynamically set the log level from the command line using jvm system variables -->

@@ -1,19 +1,16 @@
 package dev.solace.pqdemo;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.math3.distribution.PoissonDistribution;
@@ -58,6 +55,13 @@ public class Test {
 	
 	
 	public static void main(String... args) {
+		
+		Entry<Command,Object> entry = new SimpleEntry<>(Command.QUIT, null);
+		System.out.println(entry.getKey());
+		System.out.println(entry.getValue());
+		System.exit(1);
+		
+		
 		
 		Object o2 = null;
 		String a2 = null;

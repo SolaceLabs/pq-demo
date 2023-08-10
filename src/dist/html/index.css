@@ -147,3 +147,13 @@ button:disabled {
     padding: 0px 10px;
     /* pointer-events: none; */
 }
+
+.sparkline {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.crisp {
+    shape-rendering: crispEdges;
+}
+

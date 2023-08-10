@@ -19,12 +19,9 @@ package dev.solace.pqdemo;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,8 +42,6 @@ public class OrderChecker extends AbstractParentApp {
 
     private static final String APP_NAME = OrderChecker.class.getSimpleName();
     
-    private static ScheduledExecutorService singleThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Stats-Print"));
-
     private static volatile int msgRecvCounter = 0;                 // num messages received per sec
     
     static Sequencer sequencer = new Sequencer(true);
@@ -56,12 +51,11 @@ public class OrderChecker extends AbstractParentApp {
 
 
 	/** call this after stateMap has changed */
-	static void updateVars(EnumSet<Command> updated) {
-		if (updated.contains(Command.DISP)) {
-//			showEach = stateMap.get(Command.DISP).equals("each");
+	static void updateVars(Map<Command,Object> updatedCommandsPrevValues) {
+		if (updatedCommandsPrevValues.containsKey(Command.DISP)) {
 			sequencer.showEach = stateMap.get(Command.DISP).equals("each");
 		}
-		if (updated.contains(Command.PROB)) {
+		if (updatedCommandsPrevValues.containsKey(Command.PROB)) {
 			if ((Double)stateMap.get(Command.PROB) == 0) {
 				// this is fine to do here b/c this therad will be called by API thread, same as checking seq numbers
 				logger.info("Message sequencing disabled, removing all known pqKey sequence numbers");
@@ -133,22 +127,17 @@ public class OrderChecker extends AbstractParentApp {
 					topic = String.join("/", topic.split("/",2)[1]);
 				}
             	if (topic.equals("pq-demo/state/update")) {
-					EnumSet<Command> updated = parseStateUpdateMessage(((TextMessage)message).getText());
+					Map<Command,Object> updated = parseStateUpdateMessage(((TextMessage)message).getText());
 					if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
 					else logger.debug("Received state update message, but ignoring, all values same");
 					updateVars(updated);
 				} else if (topic.startsWith("pq-demo/control-")) {  // could be broadcast control, or to just me
-//					processControlMessage(topic);
-					Command updatedCommand = processControlMessage(topic);
+					Map<Command,Object> updatedCommand = processControlMessage(topic);
 					if (updatedCommand != null) {
-						updateVars(EnumSet.of(updatedCommand));
+						updateVars(updatedCommand);
 					}
-				} else if (topic.startsWith("pq-demo/proc/")) {
-//					if ((Double)stateMap.get(Command.PROB) > 0) {
-						dealWithProcMessage(message);
-//					} else {
-						// safely ignore, not tracking sequences
-//					}
+				} else if (topic.startsWith("pq-demo/proc/")) {  // deal with this, even if PROB == 0 and we're not tracking
+					dealWithProcMessage(message);
 				} else if (topic.startsWith("#SYS/LOG")) {
 					BrokerLogFileOnly.log(message);
 				} else {
@@ -172,7 +161,7 @@ public class OrderChecker extends AbstractParentApp {
 		// send request for state first before adding subscriptions...
         updateVars(sendStateRequest());
 
-        singleThreadPool.scheduleAtFixedRate(() -> {
+        statsThreadPool.scheduleAtFixedRate(() -> {
         	if (!isConnected) return;
         	publishPrintStats();
         }, 1, 1, TimeUnit.SECONDS);
@@ -195,7 +184,7 @@ public class OrderChecker extends AbstractParentApp {
 	        		isConnected = false;  // shutting down
 	        		publishPrintStats();  // one last time
 	        		Thread.sleep(100);
-	        		singleThreadPool.shutdown();  // stop printing/sending stats
+	        		statsThreadPool.shutdown();  // stop printing/sending stats
 	        		session.closeSession();  // will also close producer and consumer objects
             	} catch (InterruptedException e) {
             		// ignore, quitting!

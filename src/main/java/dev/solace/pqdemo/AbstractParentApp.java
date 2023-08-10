@@ -16,9 +16,9 @@
 
 package dev.solace.pqdemo;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -51,14 +51,15 @@ import com.solacesystems.jcsmp.XMLMessageProducer;
 public abstract class AbstractParentApp {
 	
 	static {  // used by log4j2 for the filename
-//		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));
-		System.setProperty("pid", String.format("%04d", (int)(Math.random()*1000)));
+//		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));  // ProcessHandle not available in Java 8
+		System.setProperty("pid", String.format("%04x", (int)(Math.random() * 65_536)));
 	}
 	
     static volatile boolean isShutdown = false;             // are we done?
     static volatile boolean isConnected = false;
     
-    static ScheduledExecutorService msgSendThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Message-Sender"));
+    static ScheduledExecutorService msgSendThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("MessageSender"));
+    static ScheduledExecutorService statsThreadPool = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("StatsPrinter"));
 
     static JCSMPSession session = null;
     static String myName = null;  // will initialize when connecting
@@ -73,8 +74,10 @@ public abstract class AbstractParentApp {
     	stateMap.put(Command.DISP, Command.DISP.defaultVal);  // everybody changes display
     	stateMap.put(Command.QUIT, Command.QUIT.defaultVal);  // everybody can quit
     	stateMap.put(Command.KILL, Command.KILL.defaultVal);  // everybody can die
-    	stateMap.put(Command.PROB, Command.PROB.defaultVal);  // everybody listens to the probability value to know of sequence checking is enabled
+    	stateMap.put(Command.PROB, Command.PROB.defaultVal);  // everybody listens to the probability value to know if sequence checking is enabled
     }
+
+    /** Helper method for subsclasses to add their interested Commands */
     static void addMyCommands(EnumSet<Command> commands) {
     	for (Command cmd : commands) {
     		stateMap.put(cmd, cmd.defaultVal);
@@ -198,7 +201,7 @@ public abstract class AbstractParentApp {
 		return jo.toString();
     }
     
-    static EnumSet<Command> sendStateRequest() throws JCSMPException {
+    static Map<Command,Object> sendStateRequest() throws JCSMPException {
         Requestor requestor = session.createRequestor();
         TextMessage reqMsg = JCSMPFactory.onlyInstance().createMessage(TextMessage.class);
         try {
@@ -206,14 +209,14 @@ public abstract class AbstractParentApp {
 			BytesXMLMessage response = requestor.request(reqMsg, 1000, JCSMPFactory.onlyInstance().createTopic("pq-demo/state/request"));
 			String payload = ((TextMessage)response).getText();
 			logger.info("State update received: " + payload);
-			EnumSet<Command> updated = parseStateUpdateMessage(payload);
+			Map<Command,Object> updated = parseStateUpdateMessage(payload);
 			if (!updated.isEmpty()) logger.info("Will be updating these values: " + updated);
 			else logger.debug("Ignoring, all values same");
 			return updated;
         } catch (JCSMPException e) {
         	logger.warn("### StatefulControl app not running, no response on 'pq-demo/state/request'");
         	logger.warn("### Will just use default values: " + buildStatePayload());
-        	return EnumSet.noneOf(Command.class);
+        	return Collections.emptyMap();
         }
     }
     
@@ -234,8 +237,10 @@ public abstract class AbstractParentApp {
     }
     
     private static String shortNameGenerator() {
-    	long pid = Long.parseLong(System.getProperty("pid"));  // set at top of this file
-    	return String.format("%04d", pid);
+//    	long pid = Long.parseLong(System.getProperty("pid"));  // set at top of this file
+//    	return String.format("%04d", pid);
+    	return System.getProperty("pid");
+    	
 /*    	
     	StringBuilder sb = new StringBuilder();
     	for (int i=0; i<4; i++) {
@@ -250,7 +255,7 @@ public abstract class AbstractParentApp {
     }
     
     /** type == 'pub' or 'sub' or 'state' or ..?? */
-    static void updateMyNameAfterConnect(String type) throws JCSMPException {
+    static void updateMyNameAfterConnect(final String type) throws JCSMPException {
     	String shortName = shortNameGenerator();
 //    	nick = shortName.substring(0, 2);
     	nick = shortName.substring(shortName.length()-2);  // last two chars
@@ -258,13 +263,21 @@ public abstract class AbstractParentApp {
 //        session.setProperty(JCSMPProperties.CLIENT_NAME, "pq-demo/" + type + "/" + myName);
         session.setProperty(JCSMPProperties.CLIENT_NAME, "pq/" + myName);
 //        System.setProperty("log-file-name", "pq_" + type + "_" + myName);
-        subscriptions.add("pq-demo/state/update");
-        subscriptions.add("pq-demo/control-all/>");
+        subscriptions.add("pq-demo/state/update");  // listen to state update messages from StatefulControl
+        subscriptions.add("pq-demo/control-all/>");  // control messages to all
         subscriptions.add("POST/pq-demo/control-all/>");
-        subscriptions.add("pq-demo/control-" + myName + "/>");
+        subscriptions.add("pq-demo/control-" + type + "-all/>");  // control messages to all pubs or subs
+        subscriptions.add("POST/pq-demo/control-" + type + "-all/>");
+        subscriptions.add("pq-demo/control-" + myName + "/>");  // control messages just to me
         subscriptions.add("POST/pq-demo/control-" + myName + "/>");
     }
 
+    /** Used by subclasses to add more subscriptions.  Call before injecting. */
+    static void addCustomSubscription(String sub) {
+//		session.addSubscription(JCSMPFactory.onlyInstance().createTopic(sub));
+    	subscriptions.add(sub);
+    }
+    
     /** do this after connecting and you're ready to go */
     static void injectSubscriptions() throws JCSMPException {
     	for (String sub : subscriptions) {
@@ -272,11 +285,6 @@ public abstract class AbstractParentApp {
     	}
     }
     
-    static void addCustomSubscription(String sub) {
-//		session.addSubscription(JCSMPFactory.onlyInstance().createTopic(sub));
-		subscriptions.add(sub);
-    }
-
     static void removeSubscriptions() {
     	for (String sub : subscriptions) {
     		try {
@@ -288,11 +296,13 @@ public abstract class AbstractParentApp {
     }
 
     
-    /** returns the list of commands that were updated, won't return null but an empty Set */
-    static EnumSet<Command> parseStateUpdateMessage(String jsonPayload) {
+    /** returns the list of commands that were updated, won't return null but an empty Set.
+     * Nope, not returns a Map of Updated commands + their previous values. Will return an empty Map if nothing was updated/different. */
+    static Map<Command,Object> parseStateUpdateMessage(String jsonPayload) {
     	try {
     		JSONObject jsonStateUpdate = new JSONObject(jsonPayload);  // should have ALL commands/fields from StatefulControl
-    		Set<Command> updatedCommands = new HashSet<>();
+//    		Set<Command> updatedCommands = new HashSet<>();
+    		Map<Command,Object> updatedCommands = new HashMap<>();
     		for (Command c : stateMap.keySet()) {
 //    			if (!stateMap.containsKey(c)) {
 //    				continue;  // ignore, we don't care about this guy
@@ -302,22 +312,25 @@ public abstract class AbstractParentApp {
     	    		case "String":
     	    			if (!jsonStateUpdate.getString(c.name()).equalsIgnoreCase((String)stateMap.get(c))) {
     	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getString(c.name()).toLowerCase());
-    	    				stateMap.put(c, jsonStateUpdate.getString(c.name()).toLowerCase());
-    	    				updatedCommands.add(c);
+    	    				Object prevVal = stateMap.put(c, jsonStateUpdate.getString(c.name()).toLowerCase());
+    	    				assert prevVal != null;
+    	    				updatedCommands.put(c,prevVal);
     	    			}
     	    			break;
     	    		case "Integer":
     	    			if (stateMap.get(c) == null || jsonStateUpdate.getInt(c.name()) != (Integer)stateMap.get(c)) {
     	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getInt(c.name()));
-    	    				stateMap.put(c, jsonStateUpdate.getInt(c.name()));
-    	    				updatedCommands.add(c);
+    	    				Object prevVal = stateMap.put(c, jsonStateUpdate.getInt(c.name()));
+    	    				assert prevVal != null;
+    	    				updatedCommands.put(c,prevVal);
     	    			}
     	    			break;
     	    		case "Double":
     	    			if (stateMap.get(c) == null || jsonStateUpdate.getDouble(c.name()) != (Double)stateMap.get(c)) {
     	    				logger.info("Different value, updating " + c + ": " + stateMap.get(c) + " -> " + jsonStateUpdate.getDouble(c.name()));
-    	    				stateMap.put(c, jsonStateUpdate.getDouble(c.name()));
-    	    				updatedCommands.add(c);
+    	    				Object prevVal = stateMap.put(c, jsonStateUpdate.getDouble(c.name()));
+    	    				assert prevVal != null;
+    	    				updatedCommands.put(c,prevVal);
     	    			}
     	    			break;
     	    		default:
@@ -328,19 +341,22 @@ public abstract class AbstractParentApp {
 //    	    		logger.warn("State message didn't have command " + c + ": " + jsonStateUpdate.toString());
     	    	}
     		}
-    		if (updatedCommands.isEmpty()) return EnumSet.noneOf(Command.class);
-    		return EnumSet.copyOf(updatedCommands);
+//    		if (updatedCommands.isEmpty()) return EnumSet.noneOf(Command.class);
+//    		return EnumSet.copyOf(updatedCommands);
+    		return updatedCommands;
     	} catch (JSONException e) {
     		logger.warn("Invalid JSON Object on state message! " + jsonPayload, e);
-    		return EnumSet.noneOf(Command.class);
+//    		return EnumSet.noneOf(Command.class);
+    		return Collections.emptyMap();
     	} catch (Exception e) {
     		logger.error("Uncaught exception parsing state message! " + jsonPayload, e);
-    		return EnumSet.noneOf(Command.class);
+//    		return EnumSet.noneOf(Command.class);
+    		return Collections.emptyMap();
     	}
     }
     
     // only called by the pub/sub apps, not StatefulControl which doesn't use this and handles things itself
-    static Command processControlMessage(String topic) {
+    static Map<Command,Object> processControlMessage(String topic) {
 		logger.info("Control message detected: '" + topic + "'");
 		String[] levels = topic.split("/");
 		try {
@@ -348,28 +364,29 @@ public abstract class AbstractParentApp {
 			if (command == Command.QUIT) {
 				logger.warn("Graceful Shutdown message received...");
 				isShutdown = true;
-				return Command.QUIT;
+				return Collections.singletonMap(Command.QUIT, null);
 			} else if (command == Command.KILL) {
         		logger.warn("Kill message received!");
         		Runtime.getRuntime().halt(255);  // die immediately
-        		return Command.KILL;  // unnecessary, but gives a Java compile warning without it
+				return Collections.singletonMap(Command.KILL, null);  // unnecessary, but gives a Java compile warning without it
 			} else {
 				if (stateMap.containsKey(command)) {
 					Object value = parseControlMessageValue(command, levels.length > 3 ? levels[3] : null);
 					if (value == null) {
 						if (command.numParams == 0) {  // expected to be null
-							return command;
-						} else {
+							return Collections.singletonMap(command, null);
+						} else {  // we have a valid command, but no value associated with it?
 							return null;
 						}
 					} else {
 						if (value.equals(stateMap.get(command))) {
 							logger.info("Same " + command + " value as before");
-							return null;
+//							return Collections.singletonMap(command, null);
+							return null;  // ignore this!
 						} else {
 							logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
-							stateMap.put(command, value);
-							return command;
+							Object prevVal = stateMap.put(command, value);
+							return Collections.singletonMap(command, prevVal);
 						}
 					}
 				} else {
@@ -385,7 +402,7 @@ public abstract class AbstractParentApp {
     
     
     // can only be one "Command" update at a time
-    /** returns the Integer, Double, String that is parsed from the control topic */
+    /** returns the Integer, Double, String that is parsed from the control topic. returns null if nothing to parse, no value. */
 	static Object parseControlMessageValue(Command command, String param) {
 		try {
 			switch (command) {

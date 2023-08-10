@@ -39,7 +39,7 @@ updateConnBox();
 var ctrlSet = new Set();
 
 function updateCtrlList() {
-  var ctrlArray = [ 'control-all' ];
+  var ctrlArray = [ 'control-all', 'control-pub-all', 'control-sub-all' ];
   for (let c of ctrlSet) {
     var levs = c.split("/");
     ctrlArray.push('control-' + levs[1]);
@@ -1446,14 +1446,15 @@ function getPartitionHtml(d) {
     if (d.client) {
       // resp += '<td width="40%"><nobr>Partition ' + d.index + ': <span id="partsubnum'+d.index+'">Sub '+d.client+'</span></nobr></td>';
       // resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">Sub ' + d.client + '</span></nobr></td>';
-      resp += '<td width="30%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
+      resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
     } else {
       // resp += '<td width="40%"><nobr>Partition ' + d.index + ': <span id="partsubnum'+d.index+'">No Sub</span></nobr></td>';
       // resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td><td width="20%"><nobr><span id="partsubnum' + d.index + '">No Sub</span></nobr></td>';
-      resp += '<td width="30%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
+      resp += '<td width="20%" style="padding-left: 2px"><nobr>Part ' + d.index + '</nobr></td>';
     }
-    resp += '<td width="35%"><nobr>Depth: <span id="varpartdepth' + d.index + '">0</span></nobr></td>' +
-      '<td width="35%"><nobr>In/Egr: <span id="varpartingress' + d.index + '">0</span>/<span id="varpartegress' + d.index + '">0</span></nobr></td>' +
+    resp += '<td width="30%"><nobr>Depth: <span id="varpartdepth' + d.index + '">0</span></nobr></td>' +
+      '<td width="40%"><nobr>In/Egr: <span id="varpartingress' + d.index + '">0</span>/<span id="varpartegress' + d.index + '">0</span></nobr></td>' +
+      '<td width="60px"><svg id="sparkline' + d.index + '" width="50px" height="19px"><g><rect class="bar" x="10" y="10" width="4" height="10" fill="black"></rect></g></svg></td>'
       '</tr></table>';
     return resp;
   } else {  // SEMP needs to be connected before this method runs!  Uh, this is only on ENTER, need to update sub names manually
