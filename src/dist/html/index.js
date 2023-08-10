@@ -2030,12 +2030,12 @@ function activateSemp() {
 
     // start timers
     sempRatesTimerHandle = setInterval(function ratesSemp() {
-      sempV1Poll(sempV1Requests.rates, ['current-ingress-rate-per-second', 'current-egress-rate-per-second']);
+      if (visible) sempV1Poll(sempV1Requests.rates, ['current-ingress-rate-per-second', 'current-egress-rate-per-second']);
     }, 777);
     // stagger it
     setTimeout(function () {
       sempDepthTimerHandle = setInterval(function depthSemp() {
-        sempV1Poll(sempV1Requests.detail, ['num-messages-spooled', 'topic-subscription-count']);
+        if (visible) sempV1Poll(sempV1Requests.detail, ['num-messages-spooled', 'topic-subscription-count']);
       }, 777);
     }, 388);
   }
