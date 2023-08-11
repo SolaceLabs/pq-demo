@@ -113,8 +113,11 @@ public class Sequencer {
 				}
 				// else something is wrong.  Gap or redelivery?  remember, haven't seen this one before 
 				if (seqNum <= lastSeqNumSeen) {  // REWIND hopefully this is a redelivery!  ( == same is a rewind by 1)
-					
-					return new SequenceInsertStatus(Status.REWIND, hasPrevSeqNum(seqNum), incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					if (hasPrevSeqNum(seqNum)) {
+						return new SequenceInsertStatus(Status.REWIND, true, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					} else {
+						return new SequenceInsertStatus(Status.REWIND_GAP, false, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					}
 				} else {  // JUMP!
 					if (isOrderTracker) {
 						// make sure that the missing Set has been initialized
@@ -126,7 +129,11 @@ public class Sequencer {
 						}
 						if (!missing.isEmpty()) keysWithGaps.add(myKey);
 					}
-					return new SequenceInsertStatus(Status.JUMP, hasPrevSeqNum(seqNum), incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					if (hasPrevSeqNum(seqNum)) {
+						return new SequenceInsertStatus(Status.JUMP, true, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					} else {
+						return new SequenceInsertStatus(Status.JUMP_GAP, false, incNumDeliveriesOnReturn(seqNum), expectedSeqNum, diffSub);
+					}
 				}
 			}
 			
@@ -260,7 +267,7 @@ public class Sequencer {
 			    			if (seqStatus.numDupes > 0) {  // have seen this one before
 		    					logger.warn(logEntry);  // but still gap!
 			    			} else {  // never seen before
-		    					if (redeliveredFlag || !isOrderTracker) {
+								if (/* redeliveredFlag || */ !isOrderTracker) {
 		    						logger.warn(logEntry);  // gap! but this is normal for subscribers to see that take over another flow of messages
 		    					} else {
 		    						logger.error(logEntry);  // gap! bad bad in OC
