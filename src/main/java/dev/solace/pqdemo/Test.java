@@ -1,12 +1,11 @@
 package dev.solace.pqdemo;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -56,9 +55,13 @@ public class Test {
 	
 	public static void main(String... args) {
 		
-		Entry<Command,Object> entry = new SimpleEntry<>(Command.QUIT, null);
-		System.out.println(entry.getKey());
-		System.out.println(entry.getValue());
+		Map<Command,Object> entry = Collections.singletonMap(Command.QUIT, null);
+		
+		if ((Integer)entry.get(Command.QUIT) == 0) {
+			System.out.println("<");
+		} else {
+			System.out.println(">=");
+		}
 		System.exit(1);
 		
 		

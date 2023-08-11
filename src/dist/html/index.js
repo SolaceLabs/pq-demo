@@ -1627,6 +1627,10 @@ function anotherSmoothStats(client, stat, trans, colStr) {
 
 
 function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
+  if (!visible) {
+    const now = Date.now();
+    if (now - notVisibleTs > 30000) return;  // have to be not visible for a least 30 seconds to skip updates
+  }
   try {
     // if (type == 'oc') console.log(client.rate);
     // log("msgRate: "+rate);
@@ -2263,8 +2267,9 @@ if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !pr
 // window.onload = function () {
 // }
 
-var visible = true; //Date.now();
+var visible = true;
 var visibleTs = Date.now();
+var notVisibleTs = 0;  // will get set properly when switching to 'hidden'
 
 // this thing is used to track when the demo isn't visible (tab gone out of focus, other window in front, etc.) and is used to stop the animations b/c it causes super lag
 document.addEventListener("visibilitychange", function () {
@@ -2274,6 +2279,7 @@ document.addEventListener("visibilitychange", function () {
     visibleTs = Date.now();
   } else {
     log("Lost focus, disabling animated transitions");
+    notVisibleTs = Date.now();
   }
   // log("CHANGE IN VISIBILITY!  " + document.visibilityState + " at time " + Math.floor((Math.floor(Date.now() / 1000) % 3600) / 60) + "m" + (((Date.now() / 1000).toFixed(0) % 3600) % 60).toFixed(0) + "s");
 }, false);

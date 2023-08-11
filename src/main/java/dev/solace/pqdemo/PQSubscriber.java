@@ -372,7 +372,6 @@ public class PQSubscriber extends AbstractParentApp {
 					return;
 				}
 				// now track the sequence of this msg...
-				System.out.println("topic: " + msgTopic + ", ackMsgId: " + msg.getAckMessageId());
 				boolean knownDupe = sequencer.dealWith(queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered());
 				if (knownDupe) {
 					// this can happen when re-running multiple times without restarting the subscriber, so let's ignore

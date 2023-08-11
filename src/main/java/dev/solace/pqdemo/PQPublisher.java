@@ -101,15 +101,7 @@ public class PQPublisher extends AbstractParentApp {
 		assert o == null;
 	}
 
-//	private static String buildPartitionKey() {
-//		int num = (r.nextInt((Integer)stateMap.get(Command.KEYS)));
-//		return nick + "-" + Integer.toString(num, 16);
-//		//		return Integer.toString((int)(Math.random() * keySpaceSize));
-//		//		return UUID.randomUUID().toString();
-//	}
-
-	
-	private static String[] forcedKeySet = null;  // this is updated with a System variable
+	private static String[] forcedKeySet = null;  // this is updated in main() from a System variable
 	
 	private static String buildPartitionKey() {
 		if (forcedKeySet != null) {
@@ -119,27 +111,15 @@ public class PQPublisher extends AbstractParentApp {
 				.append('-')
 				.append(Integer.toHexString(r.nextInt((Integer)stateMap.get(Command.KEYS))))
 				.toString();
-//		return nick + "-" + Integer.toString(num, 16);
-		//		return Integer.toString((int)(Math.random() * keySpaceSize));
-		//		return UUID.randomUUID().toString();
 	}
-
-//	private static String buildPqKeyString(int pqKey) {
-//		if (forcedKeySet != null) {
-//			return Integer.toString(pqKey);  // not hex, not just a regular integer
-//		}
-//		return nick + "-" + Integer.toHexString(pqKey);
-//	}
-
 	
 	// call this from main thread to avoid any potential threading/concurrency issues accessing shared objects
-	private static void blankTheSeqNos() {
+	private static void blankTheSeqNosAndResendQ() {
 		logger.info("Message sequencing disabled, removing all known pqKey sequence numbers");
 		assert Thread.currentThread().getName().equals("main");
-		timeSortedQueueOfResendMsgs.clear();
-		pqkeyResendMsgsMap.clear();
 		allKeysNextSeqNoMap.clear();  // blank all the pqKey sequence nos
 		maxLengthSeqNo = 1;
+		blankResendQ();
 		blankTheSeqNosFlag = false;  // task completed, reset the flag
 	}
 	
@@ -148,15 +128,15 @@ public class PQPublisher extends AbstractParentApp {
 		assert Thread.currentThread().getName().equals("main");
 		timeSortedQueueOfResendMsgs.clear();
 		pqkeyResendMsgsMap.clear();
-		blankTheResendQ = false;  // task completed, reset the flag
 		maxLengthKey = 1;
+		blankTheResendQ = false;  // task completed, reset the flag
 	}
 	
 
 	/** call this after stateMap has changed, called from API callback thread though
 	 * @param updatedCommandsPrevValues */
 	static void updateVars(Map<Command,Object> updatedCommandsPrevValues) {
-		if (updatedCommandsPrevValues.containsKey(Command.KEYS)) {
+		if (updatedCommandsPrevValues.containsKey(Command.KEYS) && updatedCommandsPrevValues.get(Command.KEYS) != null) {
 			if (forcedKeySet != null) {
 				logger.warn("Ignoring KEYS Command, using forced set of keys from command line");
 				stateMap.put(Command.KEYS, forcedKeySet.length);  // override/overwrite the stateMap value so our stats show properly
@@ -175,11 +155,11 @@ public class PQPublisher extends AbstractParentApp {
 		if (updatedCommandsPrevValues.containsKey(Command.RATE)) {
 			if ((Integer)stateMap.get(Command.RATE) == 0) isPaused = true;  // pause if we set the rate to 0
 			else isPaused = false;  // else we are setting it to something > 0, so if we're paused just unpause
-			if ((Integer)stateMap.get(Command.RATE) < (Integer)updatedCommandsPrevValues.get(Command.RATE)) {
+			if (updatedCommandsPrevValues.get(Command.RATE) != null && (Integer)stateMap.get(Command.RATE) < (Integer)updatedCommandsPrevValues.get(Command.RATE)) {
 				maxLengthRate = 1;  // reset the spacing for the display
 			}
 		}
-		if (updatedCommandsPrevValues.containsKey(Command.PROB)) {
+		if (updatedCommandsPrevValues.get(Command.PROB) != null) {
 			if ((Double)stateMap.get(Command.PROB) == 0) {
 				// this is coming in on the API dispatch thread
 				// so rather than clear the Map here, set a flag to blank from main thread
@@ -191,7 +171,7 @@ public class PQPublisher extends AbstractParentApp {
 				}
 			}
 		}
-		if (updatedCommandsPrevValues.containsKey(Command.DELAY)) {
+		if (updatedCommandsPrevValues.get(Command.DELAY) != null) {
 			if ((Integer)stateMap.get(Command.DELAY) != 0) {
 				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
 			}
@@ -384,7 +364,7 @@ public class PQPublisher extends AbstractParentApp {
 		long now = System.nanoTime();
 		long next = now;  // when to publish the next message, based on current rate (first message, send now)
 		while (!isShutdown) {  // loop until shutdown flag, or ctrl-c, or "k"ill
-			if (blankTheSeqNosFlag) blankTheSeqNos();  // check if we've disabled order/sequence checking
+			if (blankTheSeqNosFlag) blankTheSeqNosAndResendQ();  // check if we've disabled order/sequence checking
 			if (blankTheResendQ) blankResendQ();
 			// ok, time to send a message now!
 			// advance the 'next' timer for when the _next_ message is supposed to go

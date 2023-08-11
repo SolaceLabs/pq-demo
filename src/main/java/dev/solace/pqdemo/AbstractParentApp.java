@@ -230,7 +230,7 @@ public abstract class AbstractParentApp {
         properties.setProperty(JCSMPProperties.NO_LOCAL, true);
         properties.setProperty(JCSMPProperties.GENERATE_SENDER_ID, true);
         JCSMPChannelProperties channelProps = new JCSMPChannelProperties();
-        channelProps.setReconnectRetries(-1);      // try forever
+        channelProps.setReconnectRetries(20);  // 20 loops, 3 retries, 3 seconds == 180 seconds, or 3 minutes to reconnect
         channelProps.setConnectRetriesPerHost(3);
         properties.setProperty(JCSMPProperties.CLIENT_CHANNEL_PROPERTIES, channelProps);
         return properties;
@@ -381,8 +381,8 @@ public abstract class AbstractParentApp {
 					} else {
 						if (value.equals(stateMap.get(command))) {
 							logger.info("Same " + command + " value as before");
-//							return Collections.singletonMap(command, null);
-							return null;  // ignore this!
+							return Collections.singletonMap(command, null);
+//							return null;  // ignore this!
 						} else {
 							logger.info("Different value, updating " + command + ": " + stateMap.get(command) + " -> " + value);
 							Object prevVal = stateMap.put(command, value);
