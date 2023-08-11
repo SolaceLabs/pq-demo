@@ -59,7 +59,7 @@ public class OrderChecker extends AbstractParentApp {
 			if ((Double)stateMap.get(Command.PROB) == 0) {
 				// this is fine to do here b/c this therad will be called by API thread, same as checking seq numbers
 				logger.info("Message sequencing disabled, removing all known pqKey sequence numbers");
-				sequencer.stopCheckingSequenceNums();
+				sequencer.stopCheckingSequenceNums();  // need to tell the sequencer in case there are still a couple in-flight messages with seqNums
 			} else {
 				sequencer.startCheckingSequenceNums();
 			}
