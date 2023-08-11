@@ -1454,7 +1454,7 @@ function getPartitionHtml(d) {
     }
     resp += '<td width="30%"><nobr>Depth: <span id="varpartdepth' + d.index + '">0</span></nobr></td>' +
       '<td width="40%"><nobr>In/Egr: <span id="varpartingress' + d.index + '">0</span>/<span id="varpartegress' + d.index + '">0</span></nobr></td>' +
-      '<td width="60px"><svg id="sparkline' + d.index + '" width="50px" height="19px"><g><rect class="bar" x="10" y="10" width="4" height="10" fill="black"></rect></g></svg></td>'
+      // '<td width="60px"><svg id="sparkline' + d.index + '" width="50px" height="19px"><g><rect class="bar" x="10" y="10" width="4" height="10" fill="black"></rect></g></svg></td>'
       '</tr></table>';
     return resp;
   } else {  // SEMP needs to be connected before this method runs!  Uh, this is only on ENTER, need to update sub names manually
