@@ -36,7 +36,7 @@ verify the overall/global order of the data being put out.  This is simulating a
 - **StatefulControl**: an optional utility that listens to all Control topics and maintains the current demo configuration state.  This allows "late joiners" or applications that connect later to find out the appropriate configuration.
 
 
-- **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  The dashboard can be used on its own - without the PQPublishers or PQSubscribers - just to watch the stats of a queue, and will detect other Solace clients (like SdkPerf) binding to the queue it is watching.  For more information, check out the README in the `src/dist/html` folder.
+- **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  The dashboard can be used on its own - without the PQPublishers or PQSubscribers - just to watch the stats of a queue, and will detect other Solace clients (like SdkPerf) binding to the queue it is watching.  For more information, check out the [README in the `src/dist/html` folder](https://github.com/SolaceLabs/pq-demo/tree/main/src/dist/html).
 
 
 ## Building
