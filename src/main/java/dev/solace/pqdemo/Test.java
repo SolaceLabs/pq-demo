@@ -1,6 +1,7 @@
 package dev.solace.pqdemo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,16 +54,43 @@ public class Test {
 	}
 	
 	
+	enum Blah {
+		TEST,
+		;
+	}
+
 	public static void main(String... args) {
+		
+		Blah blah3 = null;
+		if (blah3 == Blah.TEST) {
+			System.out.println("it is!?");
+		} else {
+			System.out.println("it isn't");
+		}
+		System.exit(0);
+		
+		
+       final double log2 = Math.log(2);
+       for (int msgCount = 1; msgCount <= 100; msgCount++) {
+    	   System.out.println(msgCount + ": " + (int)(Math.log(msgCount) / log2));
+       }
+	   System.exit(0);
+		
+		
 		
 		Map<Command,Object> entry = Collections.singletonMap(Command.QUIT, null);
 		
-		if ((Integer)entry.get(Command.QUIT) == 0) {
-			System.out.println("<");
-		} else {
-			System.out.println(">=");
+		List<List<Integer>> vals = new ArrayList<>();
+		for (int i=0; i<10; i++) {
+			vals.add(new ArrayList<>());
 		}
-		System.exit(1);
+		for (int i=0; i<100; i++) {
+			String s = Integer.toHexString(i);
+			vals.get(Math.abs(s.hashCode()) % 10).add(i);
+		}
+		for (int i=0; i<10; i++) {
+			System.out.println(i + ": " + vals.get(i));
+		}
 		
 		
 		

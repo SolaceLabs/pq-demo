@@ -170,7 +170,7 @@ public class OrderChecker extends AbstractParentApp {
         
         // Ready to start the application, just add some subs
         addCustomSubscription("pq-demo/proc/>");  // listen to "processed" msg receipts from subs
-        addCustomSubscription("#SYS/LOG/>");  // listen to broker event logs and interleave with our logs
+        addCustomSubscription("#SYS/LOG/>");  // listen to broker event logs and interleave with our logs (MQTT-style event log topic format)
         injectSubscriptions();
         
         final Thread shutdownThread = new Thread(new Runnable() {
