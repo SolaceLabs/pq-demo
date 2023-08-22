@@ -1662,7 +1662,7 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
         d3.select('#varpubdelay' + client.index).html(d3.format(',d')(client.delay));
       }
       if (client.resendQ > 0) d3.select('#varpubresendQ' + client.index).html('<b>' + d3.format(',d')(client.resendQ) + '</b>');
-      else d3.select('#varpubresendQ' + client.index).html(d3.format(',d')(client.resendQ));
+      else d3.select('#varpubresendQ' + client.index).html('0');
 
       d3.select('#varpubnacks' + client.index).text(d3.format('d')(client.nacks));
       if (client.nacks == 0) {
@@ -1681,11 +1681,12 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
       anotherSmoothStats(client, 'red', t2, '#0000aa');
 
       // just set these two directly
-      d3.select('#varsubslow' + client.index).text(d3.format('d')(client.slow));
       if (client.slow == 0) {
+        d3.select('#varsubslow' + client.index).text('0');
         d3.select('#varsubslow' + client.index).style('font-weight', 'normal');
         d3.select('#colsubslow' + client.index).style('color', '#000000').style('font-weight', 'normal');
       } else {
+        d3.select('#varsubslow' + client.index).text('～' + d3.format('d')(client.slow));
         d3.select('#varsubslow' + client.index).style('font-weight', 'bold');
         if (client.slow >= 50) {
           d3.select('#colsubslow' + client.index).style('color', '#880000').style('font-weight', 'bold');

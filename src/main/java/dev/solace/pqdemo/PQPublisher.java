@@ -65,7 +65,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static volatile String topicPrefix = null;  // passed in from command line
 
 	private static volatile boolean isPaused = false;
-	private static volatile ScaledPoisson delayMsecPoissonDist = null;//new ScaledPoisson((Integer)Command.DELAY.defaultVal);  // starting value
+	private static volatile ScaledPoisson delayMsecPoissonDist = new ScaledPoisson(1);  // starting value
 
 	private static Map<String, AtomicInteger> allKeysNextSeqNoMap = new HashMap<>();  // all keys, what's my seqNum
 	private static PriorityQueue<MessageKeyToResend> timeSortedQueueOfResendMsgs = new PriorityQueue<>();  // sorted on timestamp
@@ -441,8 +441,9 @@ public class PQPublisher extends AbstractParentApp {
 				message.setApplicationMessageId("aaron rules");
 				message.setSequenceNumber(seqNo);  // just use the SMF parameter rather than putting in the payload
 				// first, the payload, do we want to set this?
-				if ((Integer)stateMap.get(Command.SIZE) > 0) {
-		            byte[] payload = new byte[(Integer)stateMap.get(Command.SIZE) ];
+				int msgSize = (Integer)stateMap.get(Command.SIZE); // local copy
+				if (msgSize > 0) {
+		            byte[] payload = new byte[msgSize];
 		            Arrays.fill(payload, (byte)(r.nextInt(26) + 65));  // some random capital letter
 		            message.setData(payload);
 				}
@@ -469,6 +470,7 @@ public class PQPublisher extends AbstractParentApp {
 					// need to "re-queue" this sequenced message later for sending again, the next sequence...
 					// don't requeue if the keyspace is smaller now, and this key is too big...
 					long msecDelay = 0;  // when?  no delay, send immediately next
+					// TODO fix this race condition
 					if ((Integer)stateMap.get(Command.DELAY) > 0) msecDelay = delayMsecPoissonDist.sample();  // add some variable delay if specified
 					final long timeToSendNext = nanoTime + (msecDelay * 1_000_000L);
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
