@@ -59,7 +59,7 @@ public class PQPublisher extends AbstractParentApp {
 	private static final String APP_NAME = PQPublisher.class.getSimpleName();
 	static {
 		// populate stateMap with what I care about
-		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.DELAY, Command.SIZE));
+		addMyCommands(EnumSet.of(Command.PAUSE, Command.KEYS, Command.RATE, Command.REQD, Command.SIZE));
 	}
 
 	private static volatile String topicPrefix = null;  // passed in from command line
@@ -171,11 +171,11 @@ public class PQPublisher extends AbstractParentApp {
 				}
 			}
 		}
-		if (updatedCommandsPrevValues.get(Command.DELAY) != null) {
-			if ((Integer)stateMap.get(Command.DELAY) != 0) {
-				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.DELAY));
+		if (updatedCommandsPrevValues.get(Command.REQD) != null) {
+			if ((Integer)stateMap.get(Command.REQD) != 0) {
+				delayMsecPoissonDist = new ScaledPoisson((Integer)stateMap.get(Command.REQD));
 			}
-			if ((Integer)stateMap.get(Command.DELAY) < (Integer)updatedCommandsPrevValues.get(Command.DELAY)) {
+			if ((Integer)stateMap.get(Command.REQD) < (Integer)updatedCommandsPrevValues.get(Command.REQD)) {
 				logger.info("Decreasing the republish delay, blanking the resendQ");
 				// if delay is huge, and then shortening, need to throw away all those long-time messages 
 				blankTheResendQ = true;
@@ -195,14 +195,14 @@ public class PQPublisher extends AbstractParentApp {
 							(Integer)stateMap.get(Command.KEYS) == Integer.MAX_VALUE ? "max" : Integer.toString((Integer)stateMap.get(Command.KEYS)) :
 							Integer.toString(forcedKeySet.length),
 					(Double)stateMap.get(Command.PROB),
-					(Integer)stateMap.get(Command.DELAY));
+					(Integer)stateMap.get(Command.REQD));
 			if (stateMap.get(Command.DISP).equals("agg")) logger.debug(logEntry);
 			else logger.trace(logEntry);
 			JSONObject jo = new JSONObject()
 					.put("rate", msgSentCounter)
 					.put("keys", forcedKeySet == null ? stateMap.get(Command.KEYS) : forcedKeySet.length)
 					.put("prob", stateMap.get(Command.PROB))
-					.put("delay", stateMap.get(Command.DELAY))
+					.put("delay", stateMap.get(Command.REQD))
 					.put("activeFlow", !producer.isClosed())
 					.put("nacks", msgNackCounter)
 					.put("paused", isPaused)
@@ -471,7 +471,7 @@ public class PQPublisher extends AbstractParentApp {
 					// don't requeue if the keyspace is smaller now, and this key is too big...
 					long msecDelay = 0;  // when?  no delay, send immediately next
 					// TODO fix this race condition
-					if ((Integer)stateMap.get(Command.DELAY) > 0) msecDelay = delayMsecPoissonDist.sample();  // add some variable delay if specified
+					if ((Integer)stateMap.get(Command.REQD) > 0) msecDelay = delayMsecPoissonDist.sample();  // add some variable delay if specified
 					final long timeToSendNext = nanoTime + (msecDelay * 1_000_000L);
 					MessageKeyToResend futureMsg = new MessageKeyToResend(pqKey, seqNo + 1, timeToSendNext);
 					queueResendMsg(futureMsg);

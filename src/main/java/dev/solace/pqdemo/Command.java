@@ -27,8 +27,8 @@ public enum Command {
 	PAUSE(0, "Pub", "Pause or unpause publishing temporarily", "pq-demo/control-all/pause"),
 	RATE(1, "Pub", "Publish messaage rate", "pq-demo/control-all/rate/300", "integer [0..10000]", Integer.class, 2, 0, 10_000),
 	KEYS(1, "Pub", "Number of keys available (per-publisher)", "pq-demo/control-all/keys/1000, pq-demo/control-all/keys/max", "'max', or integer [1..2147483647]", Integer.class, 8, 1, Integer.MAX_VALUE),
-	PROB(1, "Pub", "Probability of \"follow-on\" message (same key, next seqNum)", "pq-demo/control-all/prob/0.25", "decimal [0..1]", Double.class, 0.0, 0, 1),
-	DELAY(1, "Pub", "Mean time in ms (scaled Poisson dist) to delay follow-on message", "pq-demo/control-all/delay/2000", "integer [0..30000]", Integer.class, 0, 0, 30_000),
+	PROB(1, "Pub", "Probability to re-queue a \"follow-on\" message (same key, next seqNum)", "pq-demo/control-all/prob/0.25", "decimal [0..1]", Double.class, 0.0, 0, 1),
+	REQD(1, "Pub", "Re-Queue delay, mean time in ms (scaled Poisson dist) to delay follow-on message", "pq-demo/control-all/delay/2000", "integer [0..30000]", Integer.class, 0, 0, 30_000),
 	SIZE(1, "Pub", "Size in bytes of published messages", "pq-demo/control-all/size/1024", "integer [0..100000]", Integer.class, 0, 0, 100_000),
 	
 	// subscribers

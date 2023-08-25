@@ -1655,11 +1655,11 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
       }
       if (client.prob > 0) {
         d3.select('#varpubprob' + client.index).html('<b>' + d3.format('.1f')(client.prob * 100) + '</b>');
-        d3.select('#varpubdelay' + client.index).html('<b>' + d3.format(',d')(client.delay) + '</b>');
+        d3.select('#varpubdelay' + client.index).html('<b>' + (client.delay > 0 ? '～' : '') + d3.format(',d')(client.delay) + '</b>');
       }  
       else {
         d3.select('#varpubprob' + client.index).html(d3.format('.1f')(client.prob * 100));
-        d3.select('#varpubdelay' + client.index).html(d3.format(',d')(client.delay));
+        d3.select('#varpubdelay' + client.index).html((client.delay > 0 ? '～' : '') + d3.format(',d')(client.delay));
       }
       if (client.resendQ > 0) d3.select('#varpubresendQ' + client.index).html('<b>' + d3.format(',d')(client.resendQ) + '</b>');
       else d3.select('#varpubresendQ' + client.index).html('0');

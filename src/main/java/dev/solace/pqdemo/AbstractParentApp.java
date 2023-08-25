@@ -452,7 +452,7 @@ public abstract class AbstractParentApp {
     			} catch (NumberFormatException e) {
 					throw new IllegalCommandSyntaxException(command, param, e);
 				}
-			case DELAY:
+			case REQD:
 			case RATE:
 			case SLOW:
             case ACKD:
