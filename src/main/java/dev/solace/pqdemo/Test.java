@@ -61,6 +61,11 @@ public class Test {
 
 	public static void main(String... args) {
 		
+		String name = "pq-3";
+		String queueNameSimple = name.replaceAll("[^a-zA-Z0-9\\-]", "_");  // replace
+		System.out.println(queueNameSimple);
+		System.exit(0);
+		
 		Blah blah3 = null;
 		if (blah3 == Blah.TEST) {
 			System.out.println("it is!?");

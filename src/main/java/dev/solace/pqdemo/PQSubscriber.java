@@ -135,7 +135,7 @@ public class PQSubscriber extends AbstractParentApp {
 
 		final JCSMPProperties properties = buildProperties(args);
 		queueName = args[4];
-		queueNameSimple = queueName.replaceAll("[^a-zA-Z0-9]", "_");  // replace any non-alphanumerics to _
+		queueNameSimple = queueName.replaceAll("[^a-zA-Z0-9\\-]", "_");  // replace any non-alphanumerics to _
 		properties.setProperty(JCSMPProperties.PUB_ACK_WINDOW_SIZE, 255);  // open wide up so we don't end up waiting on anything!
 		if (args.length > 5) {
 			properties.setProperty(JCSMPProperties.SUB_ACK_WINDOW_SIZE, Integer.parseInt(args[5]));  // can't change once we connect

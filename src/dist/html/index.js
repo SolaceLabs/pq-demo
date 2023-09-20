@@ -230,6 +230,7 @@ function onMessage(topic, message) {  // string, Buffer
               subMap.set(clientName, newSub);
               log("Addding new sub " + clientName);
               d3.select('#uses-box').style('visibility', 'hidden');
+              drawQueue();
               enterNewSubs();
               updateSubStatus(newSub);
               updateSubsPos();
@@ -481,6 +482,7 @@ function onMessage(topic, message) {  // string, Buffer
           const queueName = payloadWords[10];
           if (queueName == queueObj.name) {
             queueObj.state = 'REBALANCING';
+            drawQueue();
             updateQueueStatus();
             updatePartitions();
             if (!rebalanceTimer) {
@@ -595,11 +597,11 @@ function onMessage(topic, message) {  // string, Buffer
           pubMap.set(clientName, newPub);
           d3.select('#uses-box').style('visibility', 'hidden');  // at least one pub, so hide the text
           enterNewPubs();
-          updatePubs();
         // } else {  // it's already there, need update
         }
         Object.assign(pubMap.get(clientName), payload);
         updatePubStatus(pubMap.get(clientName));
+        updatePubs();
         pubMap.get(clientName).lastTs = Date.now();
         updateClientStats(pubMap.get(clientName), 'pub');
       } else if (clientName.indexOf('pq/oc') == 0) {
@@ -1471,6 +1473,7 @@ function getQueueHtml(d) {
   // state is like "rebalancing" or not
   const h2 = "<h2>Queue '" + d.name + "' <span id=\"queueStatus\"></span></h2>";
   if (d.partitionCount >= 0) {  // only happens if SEMP available
+    qHeader = 90;
     return h2 + '<nobr><p>Type: <b>' + d.accessType + '</b>, Partition Count: <b><span id="varqpart">' + d.partitionCount + '</span></b>, # Topics: <b><span id="varqtopics">' + d.topics + '</span></b></nobr></p>' +
       // '<table width="100%"><tr><td width="40%"><nobr>Depth: <span id="varqdepth">0</span> msgs</nobr></td>' +
       // '<td width="30%"><nobr>In: <span id="varqingress">0</span> msg/s</nobr></td><td width="30%"><nobr>Egr: <span id="varqegress">0</span> msg/s</nobr></td></tr></table>';
@@ -1595,7 +1598,7 @@ function anotherSmoothStats(client, stat, trans, colStr) {
   const curVar = d3.select('#var' + statName);
   // const curRedelivers = d3.select('#varsubred' + client.index);
   // const curRedeliversValue = +(curRedelivers.text().replaceAll(',', ''));
-  const curVarValue = +(curVar.text().replaceAll(',', ''));  // in case there are commas
+  const curVarValue = +(curVar.text().replace(/,/g, ''));  // in case there are commas
   const valueToSetTo = client[stat];
   if (visible) {
     if (curVarValue <= valueToSetTo) {  // set it straight
@@ -1639,13 +1642,13 @@ function updateClientStats(client, type) {  // type == 'pub' | 'sub' | 'oc'
       var t = d3.transition("msg-count-update-" + type + "-" + client.name).duration(1000).ease(d3.easeLinear);
       const msgRate = d3.select('#var' + type + 'rate' + client.index);
       if (!msgRate) log('uh oh msgRate is null');
-      const o2 = +(msgRate.text().replaceAll(',', ''));
+      const o2 = +(msgRate.text().replace(/,/g, ''));
       msgRate.datum(client.rate).transition(t).textTween(d => {
         const i2 = d3.interpolateRound(o2, d);
-        return function (t) { return d3.format('d')(i2(t)); };
+        return function (t) { return d3.format(',d')(i2(t)); };
       });
     } else {
-      d3.select('#var' + type + 'rate' + client.index).text(d3.format('d')(client.rate));
+      d3.select('#var' + type + 'rate' + client.index).text(d3.format(',d')(client.rate));
     }
     if (type == 'pub') {
       if (client.keys == 2147483647) {
@@ -2052,7 +2055,7 @@ function changeStatSmoothUsingTrans(transition, statId, val) {  // statId like '
     if (visible) {
       // var t = d3.transition(statId).duration(1000).ease(d3.easeLinear);
       const curValText = d3.select(statId);
-      const curVal = +(curValText.text().replaceAll(',', ''));
+      const curVal = +(curValText.text().replace(/,/g, ''));
       curValText.datum(val).transition(transition).textTween(d => {
         const i2 = d3.interpolateRound(curVal, d);
         return function (t) { return d3.format(',d')(i2(t)); };
@@ -2212,7 +2215,7 @@ params.forEach(p => {
     case 'queue':
       props.queue = blah[1];
       queueObj.name = props.queue;
-      queueObj.simpleName = queueObj.name.replaceAll("[^a-zA-Z0-9]", "_");
+      queueObj.simpleName = queueObj.name.replace(/[^a-zA-Z0-9\-]/g, "_");
       document.getElementById("acl").value = queueObj.name + "/>";
       break;
     case 'mqttUrl': props.mqttUrl = blah[1]; break;
@@ -2259,6 +2262,7 @@ if (!params || params == "" || !props.mqttUrl || !props.user || !props.pw || !pr
     trySempConnectivity(props);
   } else {
     log("Not attempting SEMP connectivity");
+    // drawQueue();
   }
   log("CONNECTING MQTT to " + props.mqttUrl + "...");
   connectMqtt(props.mqttUrl, props.user, props.pw);
