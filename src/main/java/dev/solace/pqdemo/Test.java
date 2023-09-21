@@ -1,5 +1,6 @@
 package dev.solace.pqdemo;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,6 +61,18 @@ public class Test {
 	}
 
 	public static void main(String... args) {
+		
+		byte[] test2 = new byte[] { -2, 4, 65, 120 };
+		String test22 = new String(test2);
+		System.out.println(test22);
+		test22 = new String(test2, Charset.forName("ISO-8859-1"));
+		System.out.println(test22);
+		test22 = new String(test2, Charset.forName("ASCII"));
+		System.out.println(test22);
+		test22 = new String(test2, Charset.forName("UTF-8"));
+		System.out.println(test22);
+		System.exit(0);
+		
 		
 		String name = "pq-3";
 		String queueNameSimple = name.replaceAll("[^a-zA-Z0-9\\-]", "_");  // replace

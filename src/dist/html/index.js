@@ -86,6 +86,9 @@ function sendCtrlMsg() {
 }
 
 var mqttClient;
+var mqttClientChecker;  // to make sure events are enabled
+var mqttEventsTimer;
+var mqttEvents = 0;  // 0 = haven't tried yet, 1 = success, 2 = nothing
 
 function connectMqtt(url, user, pw) {
   const options = { username: user, password: pw };
@@ -98,19 +101,35 @@ function connectMqtt(url, user, pw) {
   mqttClient.on('connect', function () {
     log("MQTT connected");
     mqttConn = true;
-    if (Date.now() - mqttConnTs > 5000) {  // been disconnected for at least 5 seconds!
+    if (Date.now() - mqttConnTs > 5000 && props.sempUrl) {  // been disconnected for at least 5 seconds!
       // log("TODO: SEMPV2 TO GET ALL PARTITION STATUS! And acquire new consumers");
       log("Have been disconnected from MQTT for > 5 seconds, using SEMPv2 to refresh partition client mappings")
       getQueueDetails(props.sempUrl + sempV2PartitionsSuffix.replace("{vpn}", props.vpn) + queueObj.name);
     }
     mqttConnTs = Date.now();
     updateConnBox();
-    mqttClient.subscribe('$SYS/LOG/#', function (err) {
+    mqttClient.subscribe('$SYS/LOG/#', function (err, granted) {
       if (err) {
         log("couldn't subscribe to logs-over-the-bus: $SYS/LOG/#");
         mqttConn = false;
         updateConnBox();
         mqttClient.end();
+      }
+      if (granted && mqttEvents != 1) {
+        // let's double-check that the Syslog events over the message bus are enabled
+        mqttClientChecker = mqtt.connect(url, options);
+        console.log('starting mqtt event checker');
+        mqttEventsTimer = setTimeout(function() {
+          if (mqttEvents == 0) {
+            console.log('no MQTT log events received');
+            window.alert('No event.log messages received!\n\nPlease check Message VPN settings:\n - Enable "Message VPN" and "Client" events publishing\n - Ensure "MQTT" publish format is enabled');
+            mqttClientChecker.end();
+            mqttClientChecker = null;
+            mqttClient.end();
+            mqttConn = false;
+            updateConnBox();
+          }
+        }, 1000);
       }
     });
     mqttClient.subscribe('pq-demo/stats/#', function (err) {
@@ -187,6 +206,13 @@ function onMessage(topic, message) {  // string, Buffer
     // console.log(topic);
     var levels = topic.split("/");
     if (topic.indexOf("$SYS/LOG") == 0) {  // this a log message
+      mqttEvents = 1;  // success
+      if (mqttClientChecker) {
+        console.log('success for mqtt events, disconnecting');
+        mqttClientChecker.end();
+        mqttClientChecker = null;
+        mqttEventsTimer.interrupt();
+      }
       if (topic.indexOf('#rest') == -1 && topic.indexOf('CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED') == -1) {  // ignore rest, and we'll print part reassign later...
         log(topic);  // ignore REST connections coming and going
       }
