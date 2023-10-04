@@ -1,0 +1,46 @@
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name:      pq-scaled-object
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion:    apps/v1
+    kind:          Deployment
+    name:          solace-consumer
+  pollingInterval:  5
+  cooldownPeriod:   30
+  minReplicaCount:  1
+  maxReplicaCount:  12
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 45
+          policies:
+          - type:          Pods
+            value:         2
+            periodSeconds: 20
+          selectPolicy:    Min
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+          - type:          Pods
+            value:         3
+            periodSeconds: 10
+          # - type:          Percent
+          #   value:         100
+          #   periodSeconds: 30
+          selectPolicy:    Max
+  triggers:
+  - type: solace-event-queue
+    metadata:
+      solaceSempBaseURL:        https://pq.messaging.solace.cloud:943
+      messageVpn:               pq-demo
+      queueName:                pq12
+      messageCountTarget:       '1000'
+      messageReceiveRateTarget: '90'
+#      messageSpoolUsageTarget:  '1000'
+    authenticationRef:
+      name: pq-trigger-auth

@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: solace-consumer
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      volumes:
+      - name: consumer-config-file
+        secret:
+          secretName: consumer-secret
+      - name: tz-config
+        hostPath:
+          path: /usr/share/zoneinfo/Canada/Eastern
+      containers:
+      - name: solace-consumer-1
+        image: solace-consumer:latest
+        resources:
+          limits:
+            cpu: 2
+            memory: 512Mi
+          requests:
+            cpu: 0.5
+            memory: 256Mi
+        volumeMounts:
+          - mountPath: /opt/partitioned-queue-demo/k8s-config
+            name: consumer-config-file
+            readOnly: true
+          - name: tz-config
+            mountPath: /etc/localtime
+        imagePullPolicy: Never
+      restartPolicy: Always
