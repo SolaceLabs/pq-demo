@@ -211,7 +211,8 @@ function onMessage(topic, message) {  // string, Buffer
         console.log('success for mqtt events, disconnecting');
         mqttClientChecker.end();
         mqttClientChecker = null;
-        mqttEventsTimer.interrupt();
+        clearInterval(mqttEventsTimer);
+        mqttEventsTimer = null;
       }
       if (topic.indexOf('#rest') == -1 && topic.indexOf('CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED') == -1) {  // ignore rest, and we'll print part reassign later...
         log(topic);  // ignore REST connections coming and going
@@ -2203,7 +2204,7 @@ function updateStatsFromSemp(stats) {
         changeStatSmoothUsingTrans(t, '#varpartegress' + i, sa[i]);
         let lineSize = (0.4 * (sa[i] / max)) + 0.2;
         d3.select('#partline'+i).style('stroke-width', lineSize+'em');
-        if (sa[i] == 0 && stats['current-ingress-rate-per-second'][i] > 3) {  // egress is 0, and there it at least some ingress (spooling)
+        if (sa[i] == 0 && stats['current-ingress-rate-per-second'][i] > 0) {  // egress is 0, and there it at least some ingress (spooling)
           d3.select('#varpartegress' + i).style('color', 'red').style('font-weight', 'bold');
         } else if (sa[i] > 10 && sa[i] > 1.25 * stats['current-ingress-rate-per-second'][i]) {  // there is some egress, nad it's 1.25 times ingress (draining)
           d3.select('#varpartegress' + i).style('color', 'darkgreen').style('font-weight', 'bold');
