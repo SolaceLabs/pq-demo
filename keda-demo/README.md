@@ -5,3 +5,12 @@ KEDA (Kubernetes Event-Driven Autoscaler) is a component that allows you to scal
 
 
 
+This demo was based on example scaler and test data from my colleague Dennis:
+
+
+
+
+
+
+
+
