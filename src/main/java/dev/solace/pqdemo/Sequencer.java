@@ -30,12 +30,18 @@ import org.apache.logging.log4j.Logger;
 public class Sequencer {
 
 	enum Status {
-		OK,  // as expected, seqNum is 1 more than previous
+		/** as expected, seqNum is 1 more than previous */
+		OK,
+		/** jump ahead in ordering, but previous msg seqNum was there */
 		JUMP,
+		/** super bad jump ahead in ordering, and previous msg seqNum not received */
 		JUMP_GAP,
+		/** backwards jump in ordering, but previous msg seqNum was there */
 		REWIND,
+		/** backwards jump in ordering, and NO previous msg seqNum */
 		REWIND_GAP,
-		NO_OC,  // no order checking
+		/** no order checking */
+		NO_OC,
 		;
 	}
 	
@@ -200,7 +206,7 @@ public class Sequencer {
 			return missingMgsCount;
 		}
 		
-	    boolean dealWith(String sub, String pqKey, int msgSeqNum, boolean redeliveredFlag) {
+	    boolean dealWith(String sub, String pqKey, int msgSeqNum, boolean redeliveredFlag, boolean ocMsgRedFlag) {
 	    	try {
 			    maxLengthKey = Math.max(maxLengthKey, pqKey.length());  // listerally just for spacing on console display
 			    maxLengthSeqNo = Math.max(maxLengthSeqNo, Integer.toString(msgSeqNum).length());  // listerally just for spacing on console display
@@ -224,16 +230,16 @@ public class Sequencer {
 			    			msgSeqNum < seqStatus.expected ?
 			    					Integer.toString(msgSeqNum-seqStatus.expected)
 			    					: "+" + Integer.toString(msgSeqNum-seqStatus.expected+1));
-			    	final boolean prev = seqStatus.hasPrev;
-			    	if (!prev) gaps++;  // increment the counter
-			    	final String prevStr =  msgSeqNum == 0 ? "-" : prev ? CharsetUtils.PREV_YES : CharsetUtils.PREV_NO;
+//			    	final boolean prev = seqStatus.hasPrev;
+			    	if (!seqStatus.hasPrev) gaps++;  // increment the counter
+			    	final String prevStr =  msgSeqNum == 0 ? "-" : seqStatus.hasPrev ? CharsetUtils.PREV_YES : CharsetUtils.PREV_NO;
 			    	final String diffSubStr = seqStatus.diffSub ? " " + CharsetUtils.WARNING + " DIFFSUB" : "";
 			    	if (seqStatus.numDupes > 0) dupes++;  // increment the counter
 			    	final String missingStr = perKeySeq.toStringMissingRanged();  // just to print the ranges of seq nums that we're missing
 			    	// OK, so stats for red & gaps (prevSeqNum) & dupes all taken care of... just newKs & oos to take care of...
-	                final String logEntry = String.format(inner, pqKey, msgSeqNum, seqStatus.expected, plusMinusJumpCount, prevStr, seqStatus.status, diffSubStr, dupeCountStr, missingStr);
+	                String logEntry = String.format(inner, pqKey, msgSeqNum, seqStatus.expected, plusMinusJumpCount, prevStr, seqStatus.status, diffSubStr, dupeCountStr, missingStr);
 	                // inner: key, got seqNum, expected seqNum, plusMinusCount, prevStr, insert status (OK),  diff Sub?, dupe?, list of missing
-
+	                if (ocMsgRedFlag) logEntry += " pub retransmit";  // very rare occurence, publisher (PQSub) resends AD proc msg during congestion
 	                // I think we should log all redeliveries, always, for visibility
 	                // And any non-OK status should be logged, regardless of redelivery flag or not...
 			    	// if (redeliveredFlag) {  // ok, how to deal..?
@@ -241,10 +247,13 @@ public class Sequencer {
 	                        case NO_OC:
 	                        case OK:
 	                        if (redeliveredFlag || seqStatus.diffSub) {
-	                            logger.info(logEntry);  // log all redeliveries, even if "OK" sequencing, and when sub changes
+	                            logger.info(logEntry);  // log all sub redeliveries, even if "OK" sequencing, and when sub changes
 	                        } else {
 	                            if (seqStatus.numDupes > 0) {  // duplicate message, but no redelivered flag?
-	                                logger.info(logEntry);  // log it
+	                            	if (ocMsgRedFlag) {  // this can happen is publisher (PQSub) retransmission during congestion
+	                            		logger.debug(logEntry);
+	                            	}
+	                            	else logger.info(logEntry);  // log it
 	                            } else {  // this is the super normal path
 	                                if (perKeySeq.missing != null && !perKeySeq.missing.isEmpty()) {  // will always be empty if isOrderTracker==false
 	                                    logger.warn(logEntry);  // log it at WARN if there are some missing seqNums on this key
@@ -258,8 +267,12 @@ public class Sequencer {
 							break;
 			    		case JUMP:  // shouldn't jump ahead, unless we're a non-ex queue and redelivering?  Or during NACK retransmission
 			    			// JUMP will always at log at >= INFO, no GAP so is not so bad
-			    			oos++;
-	    					logger.info(logEntry);
+			    			if (ocMsgRedFlag && seqStatus.hasPrev) {
+                        		logger.debug(logEntry);
+			    			} else {
+				    			oos++;
+		    					logger.info(logEntry);
+			    			}
 							break;
 			    		case JUMP_GAP:
 			    			// JUMP with a GAP will always at log at >= WARN
@@ -277,7 +290,12 @@ public class Sequencer {
 			    		case REWIND:  // rewinding, but has no gap so is ok?
 			    			// REWIND will always at log at >= INFO
 			    			// should we call this an OoS as well..?  It's a change of sequence for sure..?
-			    			logger.info(logEntry);
+			    			// yes, but during failover + redelivery, this will happen so don't
+			    			if (ocMsgRedFlag && seqStatus.hasPrev) {
+                        		logger.debug(logEntry);
+			    			} else {
+		    					logger.info(logEntry);
+			    			}
 			    			break;
 			    		case REWIND_GAP:  // gaps are bad
 							oos++;
@@ -436,15 +454,19 @@ public class Sequencer {
     }
     
     /** returns true if this is a known expected dupe */
-    // we should verify the queue name is the same for all messages, in case of collisions..?
-    // what if we are monitoring two queues??
     boolean dealWith(String queue, String sub, String pqKey, int msgSeqNum, boolean redeliveredFlag) {
     	if (!queuesToPqKeysSeqNumsMap.containsKey(queue)) {  // first time seeing this queue
     		queuesToPqKeysSeqNumsMap.put(queue, new PerQueueSequence(queue));
     	}
-    	return queuesToPqKeysSeqNumsMap.get(queue).dealWith(sub, pqKey, msgSeqNum, redeliveredFlag);
+    	return queuesToPqKeysSeqNumsMap.get(queue).dealWith(sub, pqKey, msgSeqNum, redeliveredFlag, false);
+    }
 
-    
+    /** returns true if this is a known expected dupe */
+    boolean dealWith(String queue, String sub, String pqKey, int msgSeqNum, boolean redeliveredFlag, boolean actualMsgRedFlag) {
+    	if (!queuesToPqKeysSeqNumsMap.containsKey(queue)) {  // first time seeing this queue
+    		queuesToPqKeysSeqNumsMap.put(queue, new PerQueueSequence(queue));
+    	}
+    	return queuesToPqKeysSeqNumsMap.get(queue).dealWith(sub, pqKey, msgSeqNum, redeliveredFlag, actualMsgRedFlag);
     }
 
 

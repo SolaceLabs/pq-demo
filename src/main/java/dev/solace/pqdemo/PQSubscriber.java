@@ -17,11 +17,15 @@
 package dev.solace.pqdemo;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
@@ -127,12 +131,40 @@ public class PQSubscriber extends AbstractParentApp {
 
 	/** This is the main app.  Use this type of app for receiving Guaranteed messages (e.g. via a queue endpoint). */
 	public static void main(String... args) throws JCSMPException, InterruptedException, IOException {
-		if (args.length < 5) {  // Check command line arguments
+		if (args.length == 1 && args[0].equals("props")) {
+			// for running in k8s environment, let's check to see if a property file exists:
+			final String PROPERTIES_FILE = "consumer.properties";
+	        String configFile = System.getProperty("user.dir") + "/k8s-config/" + PROPERTIES_FILE;		
+	        final Properties props = new Properties();
+	        try {
+	        	logger.info("Trying to load properties file from: " + configFile);
+	        	props.load(new FileInputStream(configFile));
+	        	logger.info("Success! Loading properties...");
+            } catch (Exception e) {
+	        	logger.info("Nope, trying to load properties file via ClassLoader ResourceAsStream");
+                try {
+                    props.load(PQSubscriber.class.getClassLoader().getResourceAsStream(PROPERTIES_FILE));
+                    logger.info("Success! Loading properties...");
+                } catch (Exception e2) {
+                	logger.error("Could not load properties file '" + PROPERTIES_FILE + "'. Verify k8s config. Terminating.");
+                	System.exit(1);
+                }
+            }
+	        List<String> newArgs = new ArrayList<>();
+	        newArgs.add(props.getProperty("host"));  // might be null
+	        newArgs.add(props.getProperty("vpn_name"));
+	        newArgs.add(props.getProperty("username"));
+	        newArgs.add(props.getProperty("password"));
+	        newArgs.add(props.getProperty("queue.name"));
+	        if (System.getenv("SUB_ACK_WINDOW_SIZE") != null) {
+	        	newArgs.add(System.getenv("SUB_ACK_WINDOW_SIZE"));
+	        }
+	        args = newArgs.toArray(args);  // fake the command line arguments with my loaded properties values
+		} else if (args.length < 5) {  // Check command line arguments
 			System.out.printf("Usage: %s <host:port> <message-vpn> <client-username> <password> <queue> [sub-ad-win-size]%n%n", APP_NAME);
 			System.exit(-1);
 		}
-		logger.debug(APP_NAME + " initializing...");
-
+		logger.info(APP_NAME + " initializing...");
 		final JCSMPProperties properties = buildProperties(args);
 		queueName = args[4];
 		queueNameSimple = queueName.replaceAll("[^a-zA-Z0-9\\-]", "_");  // replace any non-alphanumerics to _
@@ -155,9 +187,9 @@ public class PQSubscriber extends AbstractParentApp {
 			}
 
 			@Override
-			public void handleErrorEx(Object arg0, JCSMPException arg1, long arg2) {
+			public void handleErrorEx(Object o, JCSMPException e, long ts) {
 				// TODO Auto-generated method stub
-				logger.error("*** Received a producer error: " + arg0);
+				logger.error("*** Received a producer error (NACK): " + o, e);
 				// isShutdown = true;  // don't shutdown, in case a NACK or ACL violation, try to keep going
 			}
 		});
@@ -223,7 +255,7 @@ public class PQSubscriber extends AbstractParentApp {
 		flow_prop.setAckMode(JCSMPProperties.SUPPORTED_MESSAGE_ACK_CLIENT);  // best practice
 		flow_prop.setActiveFlowIndication(true);  // Flow events will advise when 
 
-		logger.debug("Attempting to bind to queue '" + queueName + "' on the broker.");
+		logger.info("Attempting to bind to queue '" + queueName + "' on the broker.");
 		try {
 			// see bottom of file for QueueFlowListener class, which receives the messages from the queue
 			flowQueueReceiver = session.createFlow(new QueueFlowListener(), flow_prop, null, new FlowEventHandler() {
@@ -254,7 +286,7 @@ public class PQSubscriber extends AbstractParentApp {
         final Thread shutdownThread = new Thread(new Runnable() {
             public void run() {
             	try {
-	                System.out.println("Shutdown detected, graceful quitting begins...");
+	                logger.info("Shutdown detected, graceful quitting begins...");
 	                isShutdown = true;
 	                publishPrintStats();
 	        		flowQueueReceiver.stop();  // stop the queue consumer
@@ -267,11 +299,12 @@ public class PQSubscriber extends AbstractParentApp {
 	                publishPrintStats();  // last time
 	        		Thread.sleep(100);
 	        		statsThreadPool.shutdown();  // stop printing stats
+	        		logger.info("Disconnecting session...");
 	        		session.closeSession();  // will also close consumer and producer objects
             	} catch (InterruptedException e) {
             		// ignore, quitting!
             	} finally {
-            		System.out.println("Goodbye!" + CharsetUtils.WAVE);
+            		logger.info("Goodbye!" + CharsetUtils.WAVE);
             	}
             }
         });
@@ -291,16 +324,16 @@ public class PQSubscriber extends AbstractParentApp {
             	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             	String line = reader.readLine();
             	if ("\033".equals(line)) {  // octal 33 == dec 27, which is the Escape key
-            		System.out.println("Killing app...");
+            		logger.info("Killing app...");
             		Runtime.getRuntime().halt(0);
             	}
             }
 		}
-		System.out.println("Main thread exiting.");
+		logger.info("Main thread exiting.");
 	}
 	
     // used for sending onward processing confirm to the backend
-    static void sendGuaranteedProctMsgAndAck(final BytesXMLMessage msgToAck, final String pqKey,  int delayMs) {
+    static void sendGuaranteedProcMsgAndAck(final BytesXMLMessage msgToAck, final String pqKey,  int delayMs) {
     	// just assume that Java handles a delay of 0 as "submit()" not "schedule()"
     	msgSendThreadPool.schedule(new Runnable() {
 			@Override
@@ -310,14 +343,15 @@ public class PQSubscriber extends AbstractParentApp {
 		    	assert producer != null;
 				if (producer.isClosed()) {
 					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
-					logger.warn("Producer.isClosed() but trying to send PROC message to topic: " + topic + ".  Aborting.");
+					logger.warn("Producer.isClosed() but trying to send PROC message to topic: " + topic + ". Cannot ACK.  Aborting.");
 					return;
 				}
 				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
 			   	try {
 			    	final BytesMessage msg = JCSMPFactory.onlyInstance().createMessage(BytesMessage.class);
 			    	msg.setDeliveryMode(DeliveryMode.PERSISTENT);  // I'm using Guaranteed to send the "processed" msgs to the backend OrderChecker 
-			    	msg.setCos(User_Cos.USER_COS_2);  // publish all of these at COS2 so COS1 Direct msgs from broker event logs don't get stuck behind
+			    	msg.setCorrelationKey(topic);
+//			    	msg.setCos(User_Cos.USER_COS_2);  // (not needed anymore since persistent) publish all of these at COS2 so COS1 Direct msgs from broker event logs don't get stuck behind
 //			    	if (msgToAck.getSenderTimestamp() != null) msg.setSenderTimestamp(msgToAck.getSenderTimestamp());  // set the timestamp of the outbound message
 			   		// send proc message first
 					producer.send(msg, JCSMPFactory.onlyInstance().createTopic(topic));
@@ -415,7 +449,7 @@ public class PQSubscriber extends AbstractParentApp {
 //							queueNameSimple, myName, pqKey, msgSeqNum, msg.getRedelivered() ? "/red" : "");
 //				String topic = String.format("pq-demo/proc/%s/%s/%s/%d",  // don't pass the redelivered flag into the backend anymore, it doesn't care
 //						queueNameSimple, myName, pqKey, msgSeqNum);
-				sendGuaranteedProctMsgAndAck(msg, pqKey, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
+				sendGuaranteedProcMsgAndAck(msg, pqKey, (Integer)stateMap.get(Command.ACKD));  // ACK from a different thread
 				// ideally we send Guaranteed and wait for the ACK to come back before ACKing the original message
 				// that would be the PROPER way, but this is just a silly demo
 				// msg.ackMessage();  // ACKs are asynchronous, so always a chance for dupes if we crash right here

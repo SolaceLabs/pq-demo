@@ -240,7 +240,7 @@ public class OrderChecker extends AbstractParentApp {
             int msgSeqNum = Integer.parseInt(levels[5]);
             boolean redelivered = levels.length > 6 && levels[6].equals("reD");
             
-            sequencer.dealWith(q, sub, pqKey, msgSeqNum, redelivered);
+            sequencer.dealWith(q, sub, pqKey, msgSeqNum, redelivered, msg.getRedelivered());
             
             
     	} catch (Exception e) {

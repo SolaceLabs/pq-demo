@@ -52,6 +52,7 @@ public abstract class AbstractParentApp {
 	
 	static {  // used by log4j2 for the filename
 //		System.setProperty("pid", Long.toString(ProcessHandle.current().pid()));  // ProcessHandle not available in Java 8
+		// not actual PID, but a randomish 4-char string
 		System.setProperty("pid", String.format("%04x", (int)(Math.random() * 65_536)));
 	}
 	
@@ -157,7 +158,7 @@ public abstract class AbstractParentApp {
 		    	assert producer != null;
 				if (producer.isClosed()) {
 					// this is bad. maybe we're shutting down?  but can happen if you disable the "send guaranteed messages" in the client-profile and bounce the client
-					logger.warn("Producer.isClosed() but trying to send message to topic: " + topic + ".  Aborting.");
+					logger.warn("Producer.isClosed() but trying to send Direct message to topic: " + topic + ".  Aborting.");
 					return;
 				}
 				// would probably be good to check if a) our Flow is still active; b) connected; c) etc...
