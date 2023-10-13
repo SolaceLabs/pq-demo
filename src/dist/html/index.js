@@ -117,9 +117,9 @@ function connectMqtt(url, user, pw) {
       }
       if (granted && mqttEvents != 1) {
         // let's double-check that the Syslog events over the message bus are enabled
-        mqttClientChecker = mqtt.connect(url, options);
-        console.log('starting mqtt event checker');
-        mqttEventsTimer = setTimeout(function() {
+        mqttClientChecker = mqtt.connect(url, options);  // start a 2nd connection process
+        log('starting mqtt event checker');
+        mqttEventsTimer = setTimeout(function() {  // wait to make sure we get a message
           if (mqttEvents == 0) {
             console.log('no MQTT log events received');
             window.alert('No event.log messages received!\n\nPlease check Message VPN settings:\n - Enable "Message VPN" and "Client" events publishing\n - Ensure "MQTT" publish format is enabled');
@@ -129,7 +129,7 @@ function connectMqtt(url, user, pw) {
             mqttConn = false;
             updateConnBox();
           }
-        }, 1000);
+        }, 2000);
       }
     });
     mqttClient.subscribe('pq-demo/stats/#', function (err) {
@@ -206,16 +206,16 @@ function onMessage(topic, message) {  // string, Buffer
     // console.log(topic);
     var levels = topic.split("/");
     if (topic.indexOf("$SYS/LOG") == 0) {  // this a log message
-      mqttEvents = 1;  // success
+      if (topic.indexOf('#rest') == -1 && topic.indexOf('CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED') == -1) {  // ignore REST clients, and we'll print partition reassign log later after parsing
+        log(topic);  // ignore REST connections coming and going
+      }
+      mqttEvents = 1;  // success at receiving MQTT syslog events over the MB
       if (mqttClientChecker) {
-        console.log('success for mqtt events, disconnecting');
+        log('success for mqtt events, disconnecting');
         mqttClientChecker.end();
         mqttClientChecker = null;
         clearInterval(mqttEventsTimer);
         mqttEventsTimer = null;
-      }
-      if (topic.indexOf('#rest') == -1 && topic.indexOf('CLIENT_AD_PARTITIONED_QUEUE_ASSIGNED') == -1) {  // ignore rest, and we'll print part reassign later...
-        log(topic);  // ignore REST connections coming and going
       }
       var payload = message.toString();
       if (payload.slice(-1) == '\0') {
@@ -1894,7 +1894,7 @@ function trySempConnectivity(props) {
       queueObj.msgVpnName = json.data.msgVpnName;
       // console.log(queueObj);
       if (queueObj.accessType == 'Partitioned') {
-        log("LOOKS LIEK A PARITIONED QUEUE!!");
+        log("SEMP: LOOKS LIEK A PARITIONED QUEUE!!");
         // let's add the right number of uninitialized partitions to our Map
         for (let i = 0; i < queueObj.partitionCount; i++) {
           partitionMap.set("" + i, { index: "" + i, client: null });
@@ -1963,11 +1963,11 @@ function trySempConnectivity(props) {
  */
 
       } else {     // end of parition queue block, so this not a partitioned queue!!!
-        log("This is an Exclusive queue or regular Non-Excl queue");
+        log("SEMP: This is an Exclusive queue or regular Non-Excl queue");
         var millis = Date.now() - start;
         log("Time for a single SEMPv2 queue details query: " + millis + "ms");
         queueObj.partitionCount = 0;
-        partitionMap.set("0", { index: "0", client: null });
+        partitionMap.set("0", { index: "0", client: null });  // just a single "fake" partition to show message depths
         queueObj.partitionPattern = queueObj.name;  // used for the SEMPv1 queries
         activateSemp();
         drawQueue();  // adds the access-type and stuff
