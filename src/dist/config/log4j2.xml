@@ -21,12 +21,11 @@
         <Pattern>${sys:logfile_name}-${sys:pid},%replace{%d{ISO8601}}{,}{.},%d{UNIX_MILLIS},%c{1.},%t,%level,%replace{%m}{,}{;}%n</Pattern>
       </PatternLayout>
     </File -->
-    <Solace name="solaceLogger" host="public.messaging.solace.cloud" vpn="public" username="public" password="public" direct="true" appName="${sys:logfile_name}-${sys:pid}">
+    <!--Solace name="solaceLogger" host="public.messaging.solace.cloud" vpn="public" username="public" password="public" direct="true" appName="${sys:logfile_name}-${sys:pid}">
       <PatternLayout>
         <Pattern>%d %p ${sys:logfile_name}-${sys:pid} %c{1} [%t] %m</Pattern>
       </PatternLayout>
-      <!--JSONLayout/-->
-    </Solace>
+    </Solace-->
   </Appenders>
   <Loggers>
     <!-- you can dynamically set the log level from the command line using jvm system variables -->
@@ -37,7 +36,7 @@
         <ThresholdFilter level="info" onMatch="ACCEPT" onMismatch="DENY"/>
       </AppenderRef>
       <AppenderRef ref="logfile"/>
-      <AppenderRef ref="solaceLogger"/>
+      <!-- AppenderRef ref="solaceLogger"/ -->
     </Logger>
     <Logger name="dev.solace.pqdemo.BrokerLogFileOnly" additivity="false" level="info">
       <AppenderRef ref="logfile"/>
@@ -48,7 +47,7 @@
     <Logger name="dev.solace.pqdemo" additivity="false" level="${sys:pqdemo_log_level:-trace}">
       <AppenderRef ref="console"/>
       <AppenderRef ref="logfile"/>
-      <AppenderRef ref="solaceLogger"/>
+      <!-- AppenderRef ref="solaceLogger"/ -->
     </Logger>
     <Root level="${sys:root_log_level:-info}">
       <AppenderRef ref="console"/>
