@@ -19,7 +19,8 @@ spec:
           secretName: subscriber-secrets
       - name: tz-config
         hostPath:
-          path: /usr/share/zoneinfo/Canada/Eastern
+          #path: /usr/share/zoneinfo/Canada/Eastern
+          path: /usr/share/zoneinfo/Singapore
       containers:
       - name: solace-pqdemo-subscriber-1
         image: solace-pqdemo-subscriber:latest
