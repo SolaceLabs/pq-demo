@@ -8,7 +8,7 @@ spec:
   scaleTargetRef:
     apiVersion:    apps/v1
     kind:          Deployment
-    name:          solace-consumer
+    name:          solace-pqdemo-subscriber
   pollingInterval:  5
   cooldownPeriod:   30
   minReplicaCount:  1
