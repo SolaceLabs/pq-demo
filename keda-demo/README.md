@@ -9,13 +9,6 @@ KEDA (Kubernetes Event-Driven Autoscaler) is a component that allows you to scal
 This demo was based on example scaler and test data from my colleague Dennis: https://github.com/dennis-brinley/partitioned-queue-demo
 
 
-I have modified my PQ Demo to read en
-
-
-https://keda.sh/
-
-https://keda.sh/docs/2.12/scalers/solace-pub-sub/
-
 
 
 
