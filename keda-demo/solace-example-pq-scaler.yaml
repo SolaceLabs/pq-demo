@@ -39,7 +39,7 @@ spec:
       solaceSempBaseURL:        https://pq.messaging.solace.cloud:943
       messageVpn:               pq-demo
       queueName:                pq12
-      messageCountTarget:       '1000'
+      messageCountTarget:       '500'
       messageReceiveRateTarget: '90'
 #      messageSpoolUsageTarget:  '1000'
     authenticationRef:
