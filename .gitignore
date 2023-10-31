@@ -14,4 +14,4 @@ _site
 .DS_Store
 .idea
 log/
-keda-demo/tmp/
+keda-demo/crd
