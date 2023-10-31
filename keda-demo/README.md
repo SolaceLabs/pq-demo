@@ -13,8 +13,21 @@ This demo was based on example scaler and test data from my colleague Dennis: ht
 
 
 
-## Step 1 - get k8s configured with KEDA
+## Step 1 - get Kubernetes
 
+```
+$ kubectl version
+
+kubectl controls the Kubernetes cluster manager.
+
+ Find more information at: https://kubernetes.io/docs/reference/kubectl/
+<SNIP>
+```
+
+👌🏼
+
+
+## Step 2 - get k8s configured with KEDA
 
 ```
 helm repo add kedacore https://kedacore.github.io/charts
