@@ -44,7 +44,6 @@ From the "main" / "root" directory of this project:
 
 ```
 ./gradlew clean assemble
-docker build -t solace-consumer:latest --file DockerfileKedaDemo .
 docker build -t solace-pqdemo-subscriber:latest --file DockerfileKedaDemo .
 ```
 
