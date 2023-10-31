@@ -37,7 +37,7 @@ helm install keda kedacore/keda --namespace keda
 ```
 
 
-## Step 2 - build Docker container of PQSubscriber
+## Step 3 - build Docker container of PQSubscriber
 
 
 From the "main" / "root" directory of this project:
@@ -61,12 +61,12 @@ solace-pqdemo-subscriber              latest           c37025f6db50   38 minutes
 
 
 
-## Step 2 - configure subscriber and broker connection info
+## Step 4 - configure subscriber and broker connection info
 
 ```
-mkdir tmp
-cp *.yaml tmp
-cd tmp
+mkdir crd
+cp *.yaml crd
+cd crd
 ```
 
 Edit the `solace-broker-secrets.yaml` file, and update with:
@@ -98,7 +98,7 @@ Optionally edit the `solace-pqdemo-subscriber.yaml` file:
 
 
 
-## Step 3 - apply all the config into k8s
+## Step 5 - apply all the config into k8s
 
 Apply the secrets:
 ```
@@ -120,14 +120,10 @@ kubectl apply -f solace-example-pq-scaler.yaml
 
 ## Help
 
+```
 kubectl get deployments -w
-
-kubectl get deployments
-
 kubectl get pods
-
-
-
+```
 
 
 
