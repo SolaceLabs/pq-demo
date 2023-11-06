@@ -368,7 +368,7 @@ public class PQPublisher extends AbstractParentApp {
 			if (blankTheResendQ) blankResendQ();
 			// ok, time to send a message now!
 			// advance the 'next' timer for when the _next_ message is supposed to go
-			next += 1_000_000_000L / (Integer)stateMap.get(Command.RATE);  // time to send next message in nanos
+			next += 1_000_000_000L / Math.max((Integer)stateMap.get(Command.RATE), 1);  // time to send next message in nanos
 //			next = System.nanoTime() + (1_000_000_000L / (Integer)stateMap.get(Command.RATE));  // time to send next message in nanos
 			if (!isPaused) {  // otherwise, skip this whole block and just sleep later
 				final long nanoTime = System.nanoTime();  // the time right now!
