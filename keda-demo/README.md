@@ -1,6 +1,6 @@
 # KEDA Demo Setup
 
-![scaler gfx](https://github.com/SolaceLabs/pq-demo/blob/main/readme/scaler.png
+![scaler gfx](https://github.com/SolaceLabs/pq-demo/blob/main/readme/scaler.png)
 
 KEDA (Kubernetes Event-Driven Autoscaler) is a Kubernetes Resource that allows you to scale pods/containers/workloads based on some metric(s).  One of the scalers included is for Solace PubSub+, specifically for use with Guaranteed consumer applications.  This scaler monitors queue metrics (rates and depths), and scales consumers based on some configured thresholds.
 
