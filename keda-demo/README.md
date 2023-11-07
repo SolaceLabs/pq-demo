@@ -1,16 +1,8 @@
 # KEDA Demo Setup
 
+KEDA (Kubernetes Event-Driven Autoscaler) is a Kubernetes Resource that allows you to scale pods/containers/workloads based on some metric(s).  One of the scalers included is for Solace PubSub+, specifically for use with Guaranteed consumer applications.  This scaler monitors queue metrics (rates and depths), and scales consumers based on some configured thresholds.
 
-KEDA (Kubernetes Event-Driven Autoscaler) is a component that allows you to scale pods based on some metric(s).  One of the scalers included with it is for Solace PubSub+.  This scaler 
-
-
-
-
-This demo was based on example scaler and test data from my colleague Dennis: https://github.com/dennis-brinley/partitioned-queue-demo
-
-
-
-
+This mash-up of my Partitioned Queues demo + KEDA borrowed significantly from my colleague Denis' project here, where he went into great detail to explain the Solace PubSub+ scaler: [https://github.com/dennis-brinley/partitioned-queue-demo](https://github.com/dennis-brinley/partitioned-queue-demo).  Please check it out for more detailed information.
 
 
 ## Step 1 - get Kubernetes

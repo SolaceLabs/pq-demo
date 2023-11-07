@@ -22,18 +22,19 @@ This demo is meant to demonstrate a number of things:
 
 The demo consists of 5 main components:
 
-- **PQPublisher**: a Guaranteed messaging application that publishes messages containing keys and sequence numbers to a specified topic.  The runner of the demo (YOU) will ensure that the queue used in the demo has the appropriate topic subscription on it.  For example, if publishing on topic `a/b/c`, the queue should have a matching subscription such as `a/>`, `a/*/c`, or `*/b/>`.
+- **PQPublisher**: a Guaranteed messaging application that publishes messages containing keys and sequence numbers to a specified root topic prefix.  The runner of the demo (YOU) will ensure that the queue used in the demo has the appropriate topic subscription on it.  For example, if publishing on root topic `pqtest/`, the queue should have a matching subscription as `pqtest/>`.  Typically only one PQPublisher is run, but can support multiple at same time.
 
 
-- **PQSubscriber**: a Guaranteed messaging application that will bind to the queue name specified on the command line (whether a partitioned queue, exclusive queue, or regular non-exclusive queue), and listen for demo messages specifically from the PQPublisher application.  It keeps track of all keys that it has seen, and all the sequence numbers for those keys and echos an issues to the console and log file.  Both the Subscribers and the OrderChecker (below) use a `Sequencer` class to maintain this infomation.
+- **PQSubscriber**: a Guaranteed messaging application that will bind to the queue name specified on the command line (whether a partitioned queue, exclusive queue, or regular non-exclusive queue), and listen for demo messages specifically from the PQPublisher application.  It keeps track of all keys that it has seen (if Command.PROB > 0), and all the sequence numbers for those keys and echos an issues to the console and log file.  Both the Subscribers and the OrderChecker (below) use a `Sequencer` class to maintain this infomation.  Typically, multiple PQSubscriber applications are run simultaneously.
 
 
 - **OrderChecker**: a "backend" process that is meant to listen to all of the outputs of the PQSubscribers and
-verify the overall/global order of the data being put out.  This is simulating a database or processing gateway, and is to ensure that even during client application failures or consumer scaling, that global/total order is still maintained.
-**The biggest/worst issue is if the `Sequencer` sees a gap, where a message on a particular key arrives but the previous sequence number on the same key has not yet.**
+verify the overall/global order of the data being put out.  This is done by the PQSubscribers publishing a "PROC" *processed* Direct message when they are ACKing a received message back to
+the queue.  This simulates a database or processing gateway, and is to ensure that even during client application failures or consumer scaling, that global/total order is still maintained.
+**The biggest/worst issue is if the `Sequencer` sees a gap, where a message on a particular key arrives but the previous sequence number on the same key has not yet.**  Typically, only one OrderChecker is run.
 
 
-- **StatefulControl**: an optional utility that listens to all Control topics and maintains the current demo configuration state.  This allows "late joiners" or applications that connect later to find out the appropriate configuration.
+- **StatefulControl**: an optional utility that listens to all Control topics and maintains the current demo configuration state.  This allows "late joiners" or applications that connect later to find out the appropriate configuration.  Also very useful for providing CLI-like command entry.  Only one StatefulControl should be run.
 
 
 - **The HTML / JS dashboard**: this GUI display provides a real-time view of the queue of interest and any connected clients.  The dashboard can be used on its own - without the PQPublishers or PQSubscribers - just to watch the stats of a queue, and will detect other Solace clients (like SdkPerf) binding to the queue it is watching.  For more information, check out the [README in the `src/dist/html` folder](https://github.com/SolaceLabs/pq-demo/tree/main/src/dist/html).
@@ -59,10 +60,30 @@ This will create a folder `build/staged` where the required JAR libraries, confi
 
 ## Running
 
-More here.
+There are a variety of ways to run this, but I will explain a super basic setup, and then a decent default configuration.
 
+### Super Basic
+
+**Requirements:** 4 console terminals
+ - One publisher
+ - Two subscribers
+ - One order checker
+
+[Check this part of my YouTube demo](https://youtu.be/CZC1wfHyABM?si=T7XZwqQ20dqGMH8e&t=132)
+
+
+
+### More Advanced
+
+**Requirements:** 7 console terminals
+ - One stateful control
+ - One publisher
+ - Four subscribers
+ - One order checker
 
 ![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals2.png)
+
+c
 
 
 
@@ -70,7 +91,9 @@ More here.
 
 While this demo was originally written to just showcase the Guaranteed messaging features of Partitioned Queues, this demo makes extensive use of Solace Direct messaging for communication between applications, for statistics, events, control, and updates.
 
-If you connect a regular Direct subscriber to the Solace event broker, you will 
+If you connect a regular Direct subscriber to the Solace event broker and just subscribe to `pq-demo/>`, you will see all the various control, state, stats, and processed messages flying around:
+
+(May I suggest [this handy terminal app](https://github.com/SolaceLabs/pretty-dump) for listening to messages on Solace, and pretty-printing JSON and XML).
 
 
 - `pq-demo/state/request`: when apps connect, they will attempt to request the current state from the StatefulControl app.  This is so late-joiners can be initiazlized with the same values and configuration as its peers.  If the StatefulControl app is not running, then apps will initialize with default values, but still listen to Control message updates from the event broker.
