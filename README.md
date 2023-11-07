@@ -65,9 +65,9 @@ There are a variety of ways to run this, but I will explain a super basic setup,
 ### Super Basic
 
 **Requirements:** 4 console terminals
- - One publisher
- - Two subscribers
- - One order checker
+ - 1 Publisher
+ - 2 Subscribers
+ - 1 Order Checker
 
 [Check this part of my YouTube demo](https://youtu.be/CZC1wfHyABM?si=T7XZwqQ20dqGMH8e&t=132)
 
@@ -76,15 +76,14 @@ There are a variety of ways to run this, but I will explain a super basic setup,
 ### More Advanced
 
 **Requirements:** 7 console terminals
- - One stateful control
- - One publisher
- - Four subscribers
- - One order checker
+ - 1 Stateful Control
+ - 1 Publisher
+ - 4 Subscribers
+ - 1 Order Checker
 
 ![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals2.png)
 
-c
-
+Start the Stateful Control app first.
 
 
 ## Topics in Use
