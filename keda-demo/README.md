@@ -90,7 +90,6 @@ Optionally edit the `solace-pqdemo-subscriber.yaml` file:
 
 
 
-
 ## Step 5 - apply all the config into k8s
 
 Apply the secrets:
@@ -99,7 +98,7 @@ kubectl apply -f solace-broker-secrets.yaml
 kubectl apply -f solace-subscriber-secrets.yaml
 ```
 
-Create the consumer:
+Create / start the consumer:
 ```
 kubectl apply -f solace-pqdemo-subscriber.yaml
 ```
@@ -108,6 +107,16 @@ Create the scaler:
 ```
 kubectl apply -f solace-example-pq-scaler.yaml
 ```
+
+
+## Step 6 - run the demo
+
+Refer to the README in the parent directory, but essentially:
+ - start the Stateful Control app so that each new consumer instance added by KEDA will have the same config
+ - start the Order Cheker if you want to verify sequencing per-key
+ - configure the SLOW subscriber delay to correspond with the `messageReceiveRateTarget` threshold chosen in the Solace scaler (with some wiggle room)
+    - e.g. set the target rate to 90 msg/s, but adjust the SLOW subscriber delay to 10 ms to allow for approximately 100 msg/s
+ - start the Publisher, increase the rates, watch the scaler do its thing!
 
 
 
@@ -125,9 +134,10 @@ kubectl get pods
 
 ## Tear Down
 
+``````
 
 helm uninstall -n keda keda
-
+``````
 
 
 

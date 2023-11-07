@@ -1,5 +1,5 @@
 # pq-demo
-A demo using JCSMP and MQTT web messaging to show the behaviour of Solace partitioned queues.
+A demo using JCSMP and MQTT web messaging to show the behaviour of Solace partitioned queues.  And other queue types as well.
 
 ## Overview
 
@@ -13,8 +13,9 @@ This demo is meant to demonstrate a number of things:
 - Guaranteed messaging for all keyed and sequenced data going through the specified queue
 - Direct messaging for all stats updates, control messages, and events
 - MQTT websockets for the JavaScript dashboard
-- more here
-
+- REST messaging and or other support protocols for command and control (works in μGW mode too)
+- SEMPv1 and SEMPv2 usage for queue metrics
+- Broker events-over-the-message-bus (e.g. `event.log` as topics) for watching broker state changes
 
 
 
@@ -53,6 +54,8 @@ or on Windows Command Prompt:
 
 This will create a folder `build/staged` where the required JAR libraries, config files, and start scripts will be located.
 
+This demo can be run entirely using the console apps, but it is better to also use the JavaScript dashboard to visualize what is happening.
+See the README in `src/dist/html/`
 
 
 
@@ -61,6 +64,27 @@ This will create a folder `build/staged` where the required JAR libraries, confi
 ## Running
 
 There are a variety of ways to run this, but I will explain a super basic setup, and then a decent default configuration.
+
+This deme will happily work with any queue type Solace offers, and can use it to show different things:
+
+ - **Exclusive** queue
+    - Connect multiple Subscribers, and bounce the active Subscriber's connection (basketball icon) to watch the failover happen
+    - Increasing the ACK Delay, or increasing the SUB_ACK_WINDOW size, will increase the number of redeliveries the new active sees
+ - **Non-Exclusive** queue
+    - Turn on order checking (PROB > 0) and observe the errors with sequencing observed by the Subscribers, as it is just round-robin delivery
+    - For a given use case, if each message is completely independent from all others, ordering doesn't matter, turn off order checking
+ - **Partitioned** queue
+    - Small number of keys will probably hash to not cover all partitions; larger number of keys will
+    - Specify shell variable on Publisher before running to "hard code" list of keys, e.g.:
+       - `export PQ_PUBLISHER_OPTS=-DforcedKeySet=1,2,3,4,5,6,7,8,10,15,36,41` evenly hash to a 12-partition queue
+    - Set PROB to 0.99 and DELAY to 0 to have long strings of the exact same key in a row
+    - Set PROB to 0.5 and DELAY to 10000 to have big gaps between next sequence on a key
+       - This only works if number of keys is large, otherwise key will likely be chosen before 10 seconds is up
+    - Set ACK Delay to 2000 ms and watch partitions back up a little bit
+    - Set ACK Delay quite large, larger than queue's "max handoff" timer, and watch duplicate messages happen during consumer scaling
+    - Set the queue's "Reject message to Sender even on Shutdown" setting, and then shutdown the queue's ingress: watch the Publisher get NACKs
+    - Following the PQ partition scaling guide, change the number of partitions on the queue, watch what happens
+
 
 ### Super Basic
 
@@ -71,6 +95,15 @@ There are a variety of ways to run this, but I will explain a super basic setup,
 
 [Check this part of my YouTube demo](https://youtu.be/CZC1wfHyABM?si=T7XZwqQ20dqGMH8e&t=132)
 
+ - Start the Subscribers, and the Order Checker
+ - Start the Publisher; by default it will start publishing with 8 keys at 2 messages per second, order checking disabled
+    - The Subscribers will see the messages coming through, echoing each to the console
+    - The Order Checker won't show anything because order checking is disabled
+ - Use either REST messages on control topics, or the JS dashboard, to:
+    - enable order checking: make PROB > 0
+    - increase number of keys
+    - increase message rate
+ - If the publisher goes over 200 msg/s, it will switch the DISPlay to AGGregate view
 
 
 ### More Advanced
@@ -83,8 +116,15 @@ There are a variety of ways to run this, but I will explain a super basic setup,
 
 ![Terminals view](https://github.com/SolaceLabs/pq-demo/blob/main/readme/terminals2.png)
 
-Start the Stateful Control app first.
-
+ - Start the Stateful Control first; this app will maintain the current config / state that you are applying so that 
+apps that join later will get the current state from it
+ - Start the Order Checker
+ - Start 3 Subscribers
+ - Start the Publisher; enable Order Checking PROB > 0, set KEYS to max, set rate to 500
+ - All apps should switch into DISPlay AGGregate mode, since rates are too high
+ - Add another Subscriber, watch failover happen
+ - If you change the queue's "rebalance delay" and "max handoff" timers, reload the dashboard (Shift + F5) to force it to cache the current values
+ 
 
 ## Topics in Use
 
@@ -209,7 +249,7 @@ Decimal number between 0 and 1 inclusive, default = 0.  This number is the likel
 Setting to 0 disables all sequenced checks in the Subscribers and the OrderChecker.
 
 
-### DELAY - (Pub only) Mean time in ms that the publisher will wait before resending
+### REQD - (Pub only) Mean time in ms that the publisher will wait before requeuing to send
 
 Related to `PROB` above, this is the approximate time the publisher will wait before sending the follow-on message with the same key.  The default value of 0 means that if the probability check is met, the next message published wlll be the same key.  Or, as an example, if the delay is 5000ms, then this particular key will put into the resend queue to be sent with the next sequence number in approximatlely* 5 seconds. *see Scaled Poisson section
 
@@ -263,4 +303,21 @@ The publisher application keeps a list of all keys that it has published on, and
 
 
 ### OrderChecker
+
+
+## Scaled Poisson
+
+Quite a few of the "random" values in this demo follow a modified Poisson distribution.  This gives more interesting numbers than a uniform or normal distribution, but also has a known average / mean value.
+
+For example, a SLOW subscriber delay of 10ms actually has a distribution that looks like this:
+
+(insert graph here)
+
+(insert code here)
+
+(insert Excel spreadsheet here)
+
+
+
+
 
