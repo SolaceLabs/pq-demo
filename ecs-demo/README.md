@@ -45,24 +45,16 @@ docker image push <username>/solace-pq-demo-subscriber:1.0
 ```
 
 ## Step 3 - Configure subscriber and broker connection info for ECS Deployment and SEMP Credentials for Solace Terraform
+Additional Instructions
+* If using a cloud event broker, you must submit a request to support@solace.com requesting that they update the SEMP CORS rule to allow all origins
+* If using a deployed software broker, you must allow the PQSubsriber access via security groups
+* If using a local software broker, you must enable the PQSubscriber to access
 ```
 cd terraform
-touch terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars
 ```
-Add the following entries to terraform.tfvars. Replace with actual values
-```
-docker_image = "<image_name_pushed_to_docker-hub>"
+* Replace the entries with the appropriate values for your deployment
 
-solace_username = "<solace_client_username>"
-
-solace_password = "<solace_client_password>"
-
-solace_queue = "<solace_queue_name>"
-
-solace_vpn = "<soalce_vpn_name>"
-
-solace_host = "<solace_jcsmp_host>"
-```
 
 ## Step 4 - Deploy Terraform
 Prerequisites:
@@ -70,7 +62,8 @@ Prerequisites:
 ```
 terraform apply
 ```
-* Verify successful deployment of resources
+* Verify successful deployment of resources to AWS
+* Verify successful deployment and configuration of queue on the solace broker
 
 ## Step 6 - Get the Solace ECS Scaler
 1. Download the Solace ECS Scaler Project from https://github.com/SolaceLabs/solace-ecs-scaler
