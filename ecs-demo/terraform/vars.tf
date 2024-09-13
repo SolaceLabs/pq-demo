@@ -3,7 +3,7 @@ variable "aws_region" {
   default     = "us-east-2"
 }
 
-variable "docker_image" {
+variable "pq_subscriber_docker_image" {
   description = "Docker image to deploy (e.g., 'your-dockerhub-username/pq-subscriber:latest')"
   type        = string
 }
