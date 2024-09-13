@@ -98,3 +98,14 @@ module "ecs" {
   solace_host        = var.solace_host
   solace_password    = var.solace_password
 }
+
+module "solace" {
+  source = "./modules/solace"
+  solace_semp_url = var.solace_semp_host
+  solace_vpn_name = var.solace_vpn
+  solace_semp_username = var.solace_semp_username
+  solace_semp_password = var.solace_semp_password
+  partition_count = var.solace_queue_partition_count
+  queue_name = var.solace_queue
+
+}

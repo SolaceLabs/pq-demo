@@ -44,7 +44,7 @@ Push the image to docker hub
 docker image push <username>/solace-pq-demo-subscriber:1.0
 ```
 
-## Step 3 - Configure subscriber and broker connection info for ECS Deployment
+## Step 3 - Configure subscriber and broker connection info for ECS Deployment and SEMP Credentials for Solace Terraform
 ```
 cd terraform
 touch terraform.tfvars
@@ -73,8 +73,38 @@ terraform apply
 * Verify successful deployment of resources
 
 ## Step 6 - Get the Solace ECS Scaler
-TODO: Steps to get the Solace ECS Scaler and run it
+1. Download the Solace ECS Scaler Project from https://github.com/SolaceLabs/solace-ecs-scaler
+2. Run the Solace ECS Scaler by following the instructions included in the project
+* Sample Config - Replace placeholders with actual values. Update maxReplicaCountTarget to match the number of partitions on your queue
+```
+---
+brokerConfig:
+  activeMsgVpnSempConfig:
+    brokerSempUrl: <broker_semp_url>
+    username: <semp_admin_username>
+    password: <semp_admin_password
+  msgVpnName: <vpn_name>
+  pollingInterval: 10
+ecsServiceConfig:
+  - ecsCluster: pq-demo-cluster
+    ecsService: pq-subscriber-service
+    queueName: <queue_name>
+    scalerBehaviorConfig:
+      minReplicaCount: 1
+      maxReplicaCount: 100
+      messageCountTarget: 10
+      messageReceiveRateTarget: 10
+      messageSpoolUsageTarget: 100
+      scaleOutConfig:
+        maxScaleStep: 5
+        cooldownPeriod: 60
+        stabilizationWindow: 10
+      scaleInConfig:
+        maxScaleStep: 5
+        cooldownPeriod: 60
+        stabilizationWindow: 60
 
+```
 
 ## Step 7 - run the demo
 
@@ -85,8 +115,6 @@ Refer to the README in the parent directory, but essentially:
     - e.g. set the target rate to 90 msg/s, but adjust the SLOW subscriber delay to 10 ms to allow for approximately 100 msg/s
  - start the Publisher, increase the rates, watch the scaler do its thing!
 
-
-
 ## Help
 
 
@@ -95,7 +123,8 @@ Refer to the README in the parent directory, but essentially:
 ## Tear Down
 TODO: steps to teardown terraform deployment
 ``````
-
+cd ecs-demo/terraform
+terraform destroy
 ``````
 
 
