@@ -84,6 +84,11 @@ resource "aws_security_group" "pq_subscriber_sg" {
 # ECS Cluster
 resource "aws_ecs_cluster" "pq_demo_cluster" {
   name = "pq-demo-cluster"
+  # Required for ECS Autosclaer
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 }
 
 # PQ Subscriber Service

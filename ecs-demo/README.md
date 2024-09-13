@@ -10,11 +10,12 @@ This mash-up of my Partitioned Queues demo + KEDA borrowed significantly from my
 ## Step 1 - get Terraform
 TODO: command to install terraform
 ```
-
+cd terraform
+terraform init
 ```
 
 
-## Step 2 - build Docker container of PQSubscriber
+## Step 2 - Build & Deploy Docker container of PQSubscriber
 
 
 From the "main" / "root" directory of this project:
@@ -33,28 +34,43 @@ REPOSITORY                            TAG              IMAGE ID       CREATED   
 solace-pqdemo-subscriber              latest           c37025f6db50   38 minutes ago   665MB
 ```
 
+Tag the image so we can deploy to a public Docker repo
+```
+docker image tag solace-pq-demo-subscriber:latest <username>/solace-pq-demo-subscriber:1.0
+```
 
+Push the image to docker hub
+```
+docker image push <username>/solace-pq-demo-subscriber:1.0
+```
 
+## Step 3 - Configure subscriber and broker connection info for ECS Deployment
+```
+cd terraform
+touch terraform.tfvars
+```
+Add the following entries to terraform.tfvars. Replace with actual values
+```
+docker_image = "<image_name_pushed_to_docker-hub>"
 
+solace_username = "<solace_client_username>"
 
-## Step 3 - configure subscriber and broker connection info
-TODO: update for ECS
+solace_password = "<solace_client_password>"
 
-TODO: update below
-docker build -t your-dockerhub-username/pq-subscriber:latest -f DockerfileECSDemo .
-docker push your-dockerhub-username/pq-subscriber:latest
+solace_queue = "<solace_queue_name>"
 
+solace_vpn = "<soalce_vpn_name>"
 
-## Step 4 - Deploy PQSubscriber image to ECR
-TODO: steps to deploy image to ECR
+solace_host = "<solace_jcsmp_host>"
+```
 
-
-terraform init
-terraform apply \
--var="docker_image=your-dockerhub-username/pq-subscriber:latest" \
--var="solace_host=your-solace-host" \
--var="solace_password=your-password"
-## Step 5 - Deploy to ECS via Terraform 
+## Step 4 - Deploy Terraform
+Prerequisites:
+* Connection to AWS with sufficient permissions to create VPC, ECS, and Secrets resources (See main.tf for full list of required resources)
+```
+terraform apply
+```
+* Verify successful deployment of resources
 
 ## Step 6 - Get the Solace ECS Scaler
 TODO: Steps to get the Solace ECS Scaler and run it
