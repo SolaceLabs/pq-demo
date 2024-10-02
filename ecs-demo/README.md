@@ -1,14 +1,13 @@
 # KEDA Demo Setup
 
-![scaler gfx](https://github.com/SolaceLabs/pq-demo/blob/main/readme/scaler.png)
+![scaler gfx](./img/Solace-ECS-Scaler.jpg)
 
-KEDA (Kubernetes Event-Driven Autoscaler) is a Kubernetes Resource that allows you to scale pods/containers/workloads based on some metric(s).  One of the scalers included is for Solace PubSub+, specifically for use with Guaranteed consumer applications.  This scaler monitors queue metrics (rates and depths), and scales consumers based on some configured thresholds.
+The Solace ECS Scaler is a Java application built by Solace that allows you to scale apps running on AWS ECS based on Solace Queue Metrics.The Solace ECS Scaler is built speficially for use with Guaranteed consumer applications. The appplication monitors queue metrics (rates and depths), and scales consumers based on configured thresholds.
 
-This mash-up of my Partitioned Queues demo + KEDA borrowed significantly from my colleague Dennis' project here, where he went into great detail to explain the Solace PubSub+ scaler: [https://github.com/dennis-brinley/partitioned-queue-demo](https://github.com/dennis-brinley/partitioned-queue-demo).  Please check it out for more detailed information.
+This mash-up of the Partitioned Queues demo + Solace ECS Scaler borrows significantly from my colleague Dennis' project here, where he went into great detail to explain the Solace PubSub+ scaler: [https://github.com/dennis-brinley/partitioned-queue-demo](https://github.com/dennis-brinley/partitioned-queue-demo).  Please check it out for more detailed information.
 
 
 ## Step 1 - get Terraform
-TODO: command to install terraform
 ```
 cd terraform
 terraform init
