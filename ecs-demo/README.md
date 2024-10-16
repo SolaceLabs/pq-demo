@@ -1,4 +1,4 @@
-# KEDA Demo Setup
+# ECS Scaler Demo Setup
 
 ![scaler gfx](./img/Solace-ECS-Scaler.jpg)
 
