@@ -93,7 +93,7 @@ I think that's enough instructions to get started.  Play around with it... lots 
 
 [10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)<br>
 [10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)<br>
-[1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
+[1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g) (put it on in the background while you play with the demo)
 
 
 
