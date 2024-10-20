@@ -8,9 +8,10 @@ This demo is meant to demonstrate a number of things:
 - Proving / verifying sequencing remains intact in a variety of scenarios
 
 
-[10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)
-[10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)
-[1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
+
+- [10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)
+- [10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)
+- [1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
 
 
 ### Uses / Features
@@ -57,13 +58,13 @@ Note this demo works for **exclusive** and regular **non-exclusive** queues too.
    - goto `./build/staged`
 - split your terminal into left and right
    - on the right, split it into 3 or 4 terminals (these will be the subscribers)
-   - on the left, split it into 3 (top left will be publisehr, middle will be state controler; bottom unused for now; will be order checker
+   - on the left, split it into 3 (top left will be publisher, middle will be state controler; bottom unused for now (will be order checker)
 - start the StatefulControl app first, left side, middle pane: `bin/StatefulControl tcp://broker:55555 vpn username password`
    - this guy just keeps track of the current state of the demo for new apps as they join
-   - you should see that it connects to the broker, otherwise go debug your SMF connectivity
+   - you should see logging output on the console indicating that it connects to the broker, otherwise go debug your SMF connectivity
 - start subs next: right side, top two panes, run `bin/PQSubscriber tcp://broker:55555 vpn username password queueName`
    - e.g. `bin/PQSubscriber localhost default foo bar pq12`
-   - you should see logging output on the console indicating they have connected to the broker, and then receive a `FLOW_ACTIVE` event after 5 seconds if properly configured
+   - you should see them connect to the broker, and then receive a `FLOW_ACTIVE` event after 5 seconds if properly configured
 - start publisher next: left side, top pane.  For this one, you need to know/remember the topic prefix you added to the PQ for it to attract messages.
    - e.g. `bin/PQPublisher localhost default foo bar pq12/`  (note the trailing slash... you need this; so if your topic you added to the queue was `demo/>`, then run publisher with `demo/` as last argument)
    - this will start the publisher nice and slow... 2 msgs/sec.  You should be able to see the subscribers receiving them, and based on key printed the partitioning should be working.
@@ -83,13 +84,9 @@ Note this demo works for **exclusive** and regular **non-exclusive** queues too.
 - if you provide no URL parameters, you should see the instruction for the page.  Essentially, you're going to take the 2nd long line of parameters near the bottom, and edit it for your broker.  E.g.:
 ```
 https://sg.solace.com/qr/?queue=pq12&mqttUrl=ws://localhost:8000&user=default&pw=blah&vpn=default&sempUrl=http://localhost:8080&sempUser=admin&sempPw=admin
-            URL                queueName            MQTT port   client-username & pw    vpn name                    SEMP port     SEMP user + SEMP pw
+            URL            queueName          MQTT url + port     client-username & pw    vpn name                    SEMP port     SEMP user + SEMP pw
 ```
-- at the bottom left of the dashboard, if either of "MQTT" or "SEMP" don't connect, then check the developer console for any errors
-- the dashboard uses:
-   - MQTT to listen to both broker event logs over the message-bus, as well as "stats" messages published by all the PQ demo components
-   - SEMP (both SEMPv1 and SEMPv2) to absolutely hammer the broker with requests to provide a very real-time view of the queue's partitions' depths and rates
-   - D3.js to provide nice smooth scrolling numbers and gradient effects for partition depths
+- at the bottom-left of the dashboard, if either of "MQTT" or "SEMP" don't connect, then check the developer console for any errors
 - similar to the StatefulControl app, you can use the dashboard to publish messages to the demo to control its state (e.g. rates, number of keys, etc.)
 - first pro tip: in the `control` drop-down menu, you can send your control message to one app specifically (e.g. make one subscriber slow), just note the app's name/hash to choose the right one
 

@@ -14,6 +14,14 @@ In order for this to run properly, you will need to:
  - (If using SEMP) (which makes the demo nicer) In the broker, in the global service settings, for SEMP, enable "Allow Any Host" CORS setting
     - If using Solace Cloud, this may require a Support ticket as they haven't exposed this broker setting yet
 
+
+- the dashboard uses:
+   - MQTT to listen to both broker event logs over the message-bus, as well as "stats" messages published by all the PQ demo components
+   - SEMP (both SEMPv1 and SEMPv2) to absolutely hammer the broker with requests to provide a very real-time view of the queue's partitions' depths and rates
+   - D3.js to provide nice smooth scrolling numbers and gradient effects for partition depths
+
+
+
 ## URL Parameters
 
 If you just load the dashboard without any URL params, it will print out a bunch of heler text.  Essentially you need to pass in broker connectivity
