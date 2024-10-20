@@ -4,14 +4,8 @@ A demo using JCSMP and MQTT web messaging to show the behaviour of Solace partit
 ## Overview
 
 This demo is meant to demonstrate a number of things:
-- Partitioned Queues behaviour, with regards to consumers and rebalancing
-- Proving / verifying sequencing remains intact in a variety of scenarios
-
-
-
-- [10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)
-- [10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)
-- [1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
+- Partitioned Queues behaviour, with regards to consumers and rebalancing (more visual part)
+- Proving / verifying per-key sequencing remains intact in a variety of scenarios (more behind-the-scenes part)
 
 
 ### Uses / Features
@@ -92,6 +86,15 @@ https://sg.solace.com/qr/?queue=pq12&mqttUrl=ws://localhost:8000&user=default&pw
 
 
 I think that's enough instructions to get started.  Play around with it... lots of neat things to see, but I don't want to overwhelm.  I will make an advanced section below for deep-dives.
+
+
+
+## Watch it in action!
+
+[10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)<br>
+[10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)<br>
+[1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
+
 
 
 
