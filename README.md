@@ -19,6 +19,81 @@ This demo is meant to demonstrate a number of things:
 
 
 
+## Quickstart Instructions
+
+If you just want to get the demo running, and read all the details later, here you go... this will be about the quickest decent/reasonable setup.
+Note this demo works for **exclusive** and regular **non-exclusive** queues too... often used to contrast differences in failover behaiour or ordering.  But save that for later.
+
+### Prerequisites:
+- JRE (to run) and JDK (to compile) v8 or greater
+- Access to Solace broker
+- For connecting to the broker with the graphical dashboard, and if accessing a non-localhost broker, either:
+   - a) the broker will need to be configured for TLS connections (meaning it has a server certificate, like Solace Cloud has); or
+   - b) you'll need an HTTP server to host the dashboard (lots of easy options, Python, Node)
+         - I've used: `npm install http-server -g;  http-server . -p 8888`
+
+### Broker setup
+- enable `allow-any-host` in the broker's SEMP service.  CLI: `enable -> config -> service semp cors allow-any-host`
+   - if using Solace Cloud broker, you'll need to contact Solace Support and tell them to enable this
+- in your Message VPN settings, enable event publishing for VPN and client events.  CLI: `enable -> config -> message-vpn <blah> -> event publish-message-vpn -> event publish-client`
+   - ensure that the broker is publishing events in MQTT format.  CLI: `event publish-topic-format mqtt -> end`
+- Create a new partitioned queue, call it `pq12`.  CLI: `enable -> config -> message-spool message-vpn <blah> -> create queue pq12`
+   - change the permissions to consume, access-type to non-exclusive, and number of partitions to 12. CLI: `permission all consume -> access-type non-exclusive -> partition count 12`
+   - add a topic subscription to your queue to attract messages; let's use the queue's name as the root toipc level, and enable it.  CLI: `subscription topic pq12/> -> no shut -> end`
+- Make sure you know:
+   - SEMP / CLI username and passowrd (usually `admin/admin` on localhost brokers)
+   - SEMP port (usually 8080 on software, or 943 on Cloud)
+   - client-username and password for clients
+   - MQTT WebSocket port (TLS if possible, usually 8443; otherwise plaintext, usually 8000)
+   - SMF TCP port (55555 default, 55554 on Mac Docker usually), or 55443 for TCPS
+
+### Terminal apps setup
+- compile/build the Java project (instruction below): `./gradlew assemble`
+   - goto `./build/staged`
+- split your terminal into left and right
+   - on the right, split it into 3 or 4 terminals (these will be the subscribers)
+   - on the left, split it into 3 (top left will be publisehr, middle will be state controler; bottom unused for now; will be order checker
+- start the StatefulControl app first, left side, middle pane: `bin/StatefulControl tcp://broker:55555 vpn username password`
+   - this guy just keeps track of the current state of the demo for new apps as they join
+   - you should see that it connects to the broker, otherwise go debug your SMF connectivity
+- start subs next: right side, top two panes, run `bin/PQSubscriber tcp://broker:55555 vpn username password queueName`
+   - e.g. `bin/PQSubscriber localhost default foo bar pq12`
+   - you should see logging output on the console indicating they have connected to the broker, and then receive a `FLOW_ACTIVE` event after 5 seconds if properly configured
+- start publisher next: left side, top pane.  For this one, you need to know/remember the topic prefix you added to the PQ for it to attract messages.
+   - e.g. `bin/PQPublisher localhost default foo bar pq12/`  (note the trailing slash... you need this; so if your topic you added to the queue was `demo/>`, then run publisher with `demo/` as last argument)
+   - this will start the publisher nice and slow... 2 msgs/sec.  You should be able to see the subscribers receiving them, and based on key printed the partitioning should be working.
+- you can now control the behaviour of the publishers and subscribers right here on the console!  In the left-bottom pane, run: `bin/Command`
+   - this will print out all the commands that you can run in the StatefulControl app, to control the behaviour.
+   - e.g. `rate 50` will increase the publish rate to 50 msg/same
+   - `keys 1000000` will increase the number of keys used for the partition hashing from 8 (default) to 1,000,000.
+   - `quit` tell all the messaging apps (everyone except for Stateful Control) to gracefully quit
+- for ANY terminal app, tell it to **gracefully quit** by `Ctrl+C`
+- for ANY terminal app, to **force kill** it instantly, press `Esc` and then `[ENTER]`.
+
+### JavaScript GUI dashboard setup
+- either try to use https://sg.solace.com/qr or you'll need a simple web server to host the files in `./src/dist/html`
+- the deployed website will work if your broker is running on your localhost, or if it is configured for TLS (e.g. Solace Cloud)
+   - otherwise, you'll get warnings on the developer console about mixed content. Specifically: "This request has been blocked; this endpoint must be available over WSS."
+- if so, you'll need to run a simple web server.  Just Google how to do this, there are lots.
+- if you provide no URL parameters, you should see the instruction for the page.  Essentially, you're going to take the 2nd long line of parameters near the bottom, and edit it for your broker.  E.g.:
+```
+https://sg.solace.com/qr/?queue=pq12&mqttUrl=ws://localhost:8000&user=default&pw=blah&vpn=default&sempUrl=http://localhost:8080&sempUser=admin&sempPw=admin
+            URL                queueName            MQTT port   client-username & pw    vpn name                    SEMP port     SEMP user + SEMP pw
+```
+- at the bottom left of the dashboard, if either of "MQTT" or "SEMP" don't connect, then check the developer console for any errors
+- the dashboard uses:
+   - MQTT to listen to both broker event logs over the message-bus, as well as "stats" messages published by all the PQ demo components
+   - SEMP (both SEMPv1 and SEMPv2) to absolutely hammer the broker with requests to provide a very real-time view of the queue's partitions' depths and rates
+   - D3.js to provide nice smooth scrolling numbers and gradient effects for partition depths
+- similar to the StatefulControl app, you can use the dashboard to publish messages to the demo to control its state (e.g. rates, number of keys, etc.)
+- first pro tip: in the `control` drop-down menu, you can send your control message to one app specifically (e.g. make one subscriber slow), just note the app's name/hash to choose the right one
+
+
+I think that's enough instructions to get started.  Play around with it... lots of neat things to see, but I don't want to overwhelm.  I will make an advanced section below for deep-dives.
+
+
+
+
 ## The Apps
 
 The demo consists of 5 main components:
