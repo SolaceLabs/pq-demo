@@ -8,6 +8,11 @@ This demo is meant to demonstrate a number of things:
 - Proving / verifying sequencing remains intact in a variety of scenarios
 
 
+[10m video demonstrating demo functionality](https://www.youtube.com/watch?v=CZC1wfHyABM)
+[10m video showing KEDA (Kubernetes auto-scaler) for PQ consumers](https://www.youtube.com/watch?v=fZmEwwnQ2zM)
+[1h45m deep dive video on this demo](https://www.youtube.com/watch?v=ihvwXx2R7_g)
+
+
 ### Uses / Features
 
 - Guaranteed messaging for all keyed and sequenced data going through the specified queue
@@ -28,8 +33,8 @@ Note this demo works for **exclusive** and regular **non-exclusive** queues too.
 - JRE (to run) and JDK (to compile) v8 or greater
 - Access to Solace broker
 - For connecting to the broker with the graphical dashboard, and if accessing a non-localhost broker, either:
-   - a) the broker will need to be configured for TLS connections (meaning it has a server certificate, like Solace Cloud has); or
-   - b) you'll need an HTTP server to host the dashboard (lots of easy options, Python, Node)
+   a. the broker will need to be configured for TLS connections (meaning it has a server certificate, like Solace Cloud has); or
+   b. you'll need an HTTP server to host the dashboard (lots of easy options, Python, Node)
          - I've used: `npm install http-server -g;  http-server . -p 8888`
 
 ### Broker setup
