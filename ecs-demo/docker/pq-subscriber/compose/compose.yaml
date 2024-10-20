@@ -1,0 +1,20 @@
+#https://www.docker.com/blog/docker-compose-from-local-to-am
+version: '3.8'
+
+services:
+  pq-subscriber:
+    image: solace-pqdemo-subscriber:latest
+    networks:
+      - demo-net
+    environment:
+#      export SOLACE_HOST=solace:55555 if on same network
+      - HOST=${SOLACE_HOST:-localhost:55554}
+      - VPN_NAME=${SOLACE_VPN:-default}
+      - USERNAME=${SOLACE_USERNAME:-default}
+      - PASSWORD=${SOLACE_PASSWORD:-default}
+      - QUEUE_NAME=${SOLACE_QUEUE:-pq-demo}
+      - SUB_ACK_WINDOW_SIZE=${SUB_ACK_WINDOW_SIZE:-64}
+networks:
+  demo-net:
+    external: true
+    name: demo-net

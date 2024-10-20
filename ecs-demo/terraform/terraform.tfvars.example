@@ -1,0 +1,20 @@
+pq_subscriber_docker_image = "<username>/solace-pq-demo-subscriber:1.0"
+
+solace_username = "default"
+
+solace_password = "default"
+
+solace_queue = "pq-demo"
+
+solace_vpn = "pq-demo"
+
+solace_host = "tcps://localhost:55443"
+
+solace_semp_host = "https://localhost:943"
+
+solace_semp_username = "admin"
+
+solace_semp_password = "admin"
+
+solace_queue_partition_count = 10
+
