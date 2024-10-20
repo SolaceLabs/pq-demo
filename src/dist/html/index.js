@@ -122,7 +122,7 @@ function connectMqtt(url, user, pw) {
         mqttEventsTimer = setTimeout(function() {  // wait to make sure we get a message
           if (mqttEvents == 0) {
             console.log('no MQTT log events received');
-            window.alert('No event.log messages received!\n\nPlease check Message VPN settings:\n - Enable "Message VPN" and "Client" events publishing\n - Ensure "MQTT" publish format is enabled');
+            window.alert('MQTT client connected, but no event.log messages received!\n\nPlease check Message VPN settings:\n - Enable "Message VPN" and "Client" events publishing\n - Ensure "MQTT" publish format is enabled\n\nAlso make sure the ACL for client-username "' + options.username + '" allows receiving topics "$SYS/LOG/#" and "pq-demo/#"');
             mqttClientChecker.end();
             mqttClientChecker = null;
             mqttClient.end();
@@ -1009,7 +1009,7 @@ function getSubDivHtml(d) {
   firstPart += '<td><a href="javascript:kill()" onclick="publishKillMessage(\'' + d.name + '\'); return false;" title="Instant Kill Message">💀</a></td>';
   // if (sempConn) {
   firstPart += '<td><a class="sempdep" href="javascript:bounce()" onclick="bounceClient(\'' + d.name + '\'); return false;" title="Bounce Connection">🏀</a></td>';
-  firstPart += '<td><a class="sempdep" href="javascript:acl()" onclick="toggleAcl(\'' + d.name + '\', \'connect\'); return false;" title="Toggle Connect ACL">🚫</a></td>';
+  // firstPart += '<td><a class="sempdep" href="javascript:acl()" onclick="toggleAcl(\'' + d.name + '\', \'connect\'); return false;" title="Toggle Connect ACL">🚫</a></td>';
   // }
   firstPart += '</tr></table>';
   var statusPart = '<p><nobr><span id="varsubstatus' + d.index + '">' + getSubStatusHtml(d) + '</span></nobr></p>';
